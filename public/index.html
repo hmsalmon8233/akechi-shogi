@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>5x6 将棋ゲーム (akechi)</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #1e1e1e; color: #fff; margin: 0; padding: 15px; }
+    #status { font-size: 1.1rem; margin: 10px; color: #ffd54f; }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(5, 65px);
+      grid-template-rows: repeat(6, 65px);
+      gap: 3px;
+      justify-content: center;
+      margin: 10px auto;
+      background: #333;
+      padding: 6px;
+      border-radius: 6px;
+    }
+    .cell {
+      width: 65px;
+      height: 65px;
+      background: #e3c07b;
+      color: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+      position: relative;
+    }
+    .cell.gote { color: #c62828; transform: rotate(180deg); }
+    .cell.sente { color: #1565c0; }
+    .cell.selected { background: #ffca28; border: 2px solid #ff6f00; }
+    .skill-badge { font-size: 9px; background: #4caf50; color: #fff; padding: 1px 3px; border-radius: 3px; margin-top: 2px; }
+    .skill-used { background: #9e9e9e; }
+    #controls { margin: 10px; }
+    button { padding: 8px 14px; font-size: 0.9rem; margin: 3px; cursor: pointer; border-radius: 4px; border: none; }
+    .selected-btn { background: #ff9800; color: #fff; font-weight: bold; }
+    #skill-btn { background: #e91e63; color: white; display: none; }
+  </style>
+</head>
+<body>
+  <h2>5×6 オリジナル将棋</h2>
+  <div id="status">サーバー接続中...</div>
+
+  <div id="controls">
+    <p id="instruction">駒を選んで自分の最後列をクリックしてください</p>
+    <div id="char-select">
+      <button onclick="selectChar('dragon')" id="btn-dragon">龍</button>
+      <button onclick="selectChar('knight')" id="btn-knight">桂</button>
+      <button onclick="selectChar('gold')" id="btn-gold">金</button>
+      <button onclick="selectChar('runner')" id="btn-runner">香</button>
+    </div>
+    <button id="skill-btn" onclick="triggerSkill()">スキル発動！</button>
+  </div>
+
+  <div id="board"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let myRole = 'spectator';
+    let myRoom = 'room1';
+    let selectedChar = 'dragon';
+    let currentPhase = 'setup';
+    let selectedCell = null;
+    let boardData = [];
+
+    function selectChar(key) {
+      selectedChar = key;
+      document.querySelectorAll('#char-select button').forEach(b => b.classList.remove('selected-btn'));
+      document.getElementById(`btn-${key}`)?.classList.add('selected-btn');
+    }
+    selectChar('dragon');
+
+    socket.on('connect', () => { socket.emit('join_room', myRoom); });
+
+    socket.on('init_state', (data) => {
+      myRole = data.role;
+      document.getElementById('status').textContent = `部屋: ${data.roomId} | 役割: ${data.role === 'sente' ? '先手' : data.role === 'gote' ? '後手' : '観戦者'}`;
+    });
+
+    socket.on('update_board', (data) => {
+      currentPhase = data.phase;
+      boardData = data.board;
+      const boardEl = document.getElementById('board');
+      boardEl.innerHTML = '';
+
+      if (currentPhase === 'playing') {
+        document.getElementById('instruction').textContent = `現在の手番: ${data.turn === 'sente' ? '先手' : '後手'}`;
+        document.getElementById('char-select').style.display = 'none';
+      }
+
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 5; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          const p = data.board[r][c];
+
+          if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
+            cell.classList.add('selected');
+          }
+
+          if (p) {
+            cell.textContent = p.name;
+            cell.classList.add(p.owner);
+
+            if (p.type !== 'king') {
+              const badge = document.createElement('span');
+              badge.className = `skill-badge ${p.hasUsedSkill ? 'skill-used' : ''}`;
+              badge.textContent = p.hasUsedSkill ? '済' : '技';
+              cell.appendChild(badge);
+            }
+          }
+
+          cell.onclick = () => onCellClick(r, c, p);
+          boardEl.appendChild(cell);
+        }
+      }
+    });
+
+    function onCellClick(r, c, piece) {
+      if (currentPhase === 'setup') {
+        const targetRow = myRole === 'sente' ? 5 : myRole === 'gote' ? 0 : -1;
+        if (r === targetRow && !piece) {
+          socket.emit('place_piece', { roomId: myRoom, charKey: selectedChar, col: c });
+        }
+      } else if (currentPhase === 'playing') {
+        if (selectedCell) {
+          // 選択済みの駒を動かす
+          socket.emit('move_piece', { roomId: myRoom, from: selectedCell, to: { r, c } });
+          selectedCell = null;
+          document.getElementById('skill-btn').style.display = 'none';
+        } else if (piece && piece.owner === myRole) {
+          // 自分の駒を選択
+          selectedCell = { r, c };
+          if (!piece.hasUsedSkill && piece.type !== 'king') {
+            document.getElementById('skill-btn').style.display = 'inline-block';
+          } else {
+            document.getElementById('skill-btn').style.display = 'none';
+          }
+        }
+      }
+    }
+
+    function triggerSkill() {
+      if (selectedCell) {
+        socket.emit('use_skill', { roomId: myRoom, pos: selectedCell });
+        document.getElementById('skill-btn').style.display = 'none';
+      }
+    }
+
+    socket.on('skill_activated', (data) => {
+      alert(`${data.name} がスキル【${data.skill}】を発動！`);
+    });
+
+    socket.on('game_over', (data) => {
+      alert(`勝負あり！ 勝者: ${data.winner === 'sente' ? '先手' : '後手'}`);
+    });
+  </script>
+</body>
+</html>
