@@ -1,64 +1,118 @@
+/* --- ベース設定 --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
     text-align: center;
     background-color: #f4f4f9;
-    margin: 0;
-    padding: 15px;
+    /* スマホで画面全体の無駄なスクロールを防ぐ */
+    height: 100dvh;
+    overflow-x: hidden;
 }
 
-.room-container { display: flex; justify-content: center; gap: 20px; margin: 20px 0; }
-.player-box, .spectator-box { background: white; border: 2px solid #ccc; border-radius: 8px; padding: 15px; width: 180px; }
+/* --- ロビー・ルーム用設定 --- */
+.room-container { 
+    display: flex; 
+    justify-content: center; 
+    gap: 15px; 
+    margin: 15px 0; 
+    flex-wrap: wrap;
+}
+.player-box, .spectator-box { 
+    background: white; 
+    border: 2px solid #ccc; 
+    border-radius: 8px; 
+    padding: 12px; 
+    width: 160px; 
+}
 
 .action-buttons button, .palette button {
-    font-size: 16px; padding: 10px 15px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; background-color: #007bff; color: white;
+    font-size: 15px; 
+    padding: 8px 14px; 
+    margin: 4px; 
+    cursor: pointer; 
+    border: none; 
+    border-radius: 4px; 
+    background-color: #007bff; 
+    color: white;
 }
 .start-btn, .confirm-btn { background-color: #28a745 !important; font-weight: bold; }
-.return-btn { background-color: #dc3545 !important; font-size: 18px !important; padding: 10px 20px !important; font-weight: bold; }
+.return-btn { background-color: #dc3545 !important; font-size: 16px !important; padding: 8px 16px !important; font-weight: bold; }
 .cancel-btn { background-color: #6c757d !important; }
 button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 
-/* 対局全体レイアウト */
+/* --- 対局全体レイアウト (デフォルト: PC/タブレット用) --- */
 .game-layout {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    gap: 25px;
+    gap: 20px;
     margin: 10px auto;
-    max-width: 900px;
+    width: 100%;
+    max-width: 950px;
+    padding: 0 10px;
 }
 
 .board-container {
     display: flex;
     flex-direction: column;
     align-items: center;
+    max-width: 100%;
 }
 
-/* 持ち駒表示 */
+/* 持ち駒表示（可変幅に対応） */
 .hand-box {
-    margin: 6px 0; padding: 8px; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; width: 485px; font-weight: bold; box-sizing: border-box;
+    margin: 6px 0; 
+    padding: 6px 10px; 
+    background-color: #fff3cd; 
+    border: 1px solid #ffeeba; 
+    border-radius: 6px; 
+    width: 100%;
+    max-width: 485px; 
+    font-weight: bold; 
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 .hand-piece-btn {
-    font-size: 16px; padding: 5px 12px; margin: 0 4px; cursor: pointer; background-color: #f0d9b5; border: 2px solid #8b5a2b; border-radius: 4px; font-weight: bold;
+    font-size: 14px; 
+    padding: 4px 10px; 
+    cursor: pointer; 
+    background-color: #f0d9b5; 
+    border: 2px solid #8b5a2b; 
+    border-radius: 4px; 
+    font-weight: bold;
 }
 .hand-piece-btn.selected { background-color: #ffeb3b; border-color: #d32f2f; }
 
-/* 盤面（95px × 5列 = 485px） */
+/* --- 盤面（可変サイズレスポンシブ） --- */
 #board {
     display: grid;
-    grid-template-columns: repeat(5, 95px);
-    grid-template-rows: repeat(4, 95px);
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(4, 1fr);
     gap: 2px;
     justify-content: center;
     background-color: #333;
-    border: 5px solid #333;
+    border: 4px solid #333;
     border-radius: 4px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    
+    /* 画面幅・高さに収まる自動スケーリング (比率 5:4) */
+    width: min(92vw, 485px);
+    height: calc(min(92vw, 485px) * 0.8);
 }
 
-/* 盤面のマス目（95px × 95px） */
+/* 盤面のマス目 */
 .tile {
-    width: 95px;
-    height: 95px;
+    width: 100%;
+    height: 100%;
     background-color: #f0d9b5;
     display: flex;
     align-items: center;
@@ -68,6 +122,7 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     cursor: pointer;
     position: relative;
     padding: 0;
+    overflow: hidden;
 }
 
 /* マス全体を占める 3x3 グリッド */
@@ -75,9 +130,8 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     width: 100%;
     height: 100%;
     display: grid;
-    /* 端のドット用セルを14pxに小さくし、中央列の領域（67px）を確保 */
-    grid-template-columns: 14px 1fr 14px;
-    grid-template-rows: 14px 1fr 14px;
+    grid-template-columns: 18% 1fr 18%;
+    grid-template-rows: 18% 1fr 18%;
     align-items: center;
     justify-items: center;
 }
@@ -96,7 +150,7 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: clamp(9px, 2.5vw, 12px);
     font-weight: bold;
     color: #222;
     text-align: center;
@@ -109,25 +163,25 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     color: #d32f2f;
 }
 
-/* スキル使用済みバッジ（絶対配置を解除して名前のすぐ下へ） */
+/* スキル使用済みバッジ */
 .tile .used-badge {
-    position: static !important; /* 右上固定を確実に解除 */
+    position: static !important;
     display: inline-block;
-    font-size: 9px;
+    font-size: clamp(7px, 2vw, 9px);
     color: #d32f2f;
     font-weight: bold;
     background: rgba(255, 255, 255, 0.95);
-    padding: 0px 3px;
+    padding: 0px 2px;
     border-radius: 3px;
     border: 1px solid #d32f2f;
-    margin-top: 2px;
+    margin-top: 1px;
     line-height: 1;
 }
 
 /* マスの端に表示される移動ドット（●） */
 .tile-move-dot {
-    width: 7px;
-    height: 7px;
+    width: clamp(4px, 1.5vw, 7px);
+    height: clamp(4px, 1.5vw, 7px);
     border-radius: 50%;
     display: inline-block;
 }
@@ -142,17 +196,17 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 .tile.movable { background-color: #a5d6a7 !important; }
 .tile.my-zone { background-color: #e8f5e9; }
 .tile.selected { background-color: #ffeb3b !important; }
-.tile.target-selected { background-color: #e1bee7 !important; border: 4px solid #8e24aa; }
+.tile.target-selected { background-color: #e1bee7 !important; border: 3px solid #8e24aa; }
 .tile.enemy-piece { transform: rotate(180deg); }
 
 /* 右側インフォメーションパネル */
 .info-box {
     width: 280px;
-    min-height: 480px;
+    min-height: 400px;
     background: white;
     border: 2px solid #8b5a2b;
     border-radius: 8px;
-    padding: 15px;
+    padding: 12px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     text-align: left;
     box-sizing: border-box;
@@ -162,58 +216,95 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     margin-top: 0;
     text-align: center;
     border-bottom: 2px solid #8b5a2b;
-    padding-bottom: 8px;
+    padding-bottom: 6px;
     color: #4a2c11;
+    font-size: 16px;
 }
 
-.info-empty { text-align: center; color: #777; margin-top: 150px; }
+.info-empty { text-align: center; color: #777; margin-top: 100px; font-size: 13px; }
 
-.info-piece-name { font-size: 22px; font-weight: bold; color: #222; margin-bottom: 5px; }
-.info-status-tag { display: inline-block; padding: 2px 8px; font-size: 12px; border-radius: 4px; color: white; font-weight: bold; margin-bottom: 12px; }
+.info-piece-name { font-size: 18px; font-weight: bold; color: #222; margin-bottom: 4px; }
+.info-status-tag { display: inline-block; padding: 2px 6px; font-size: 11px; border-radius: 4px; color: white; font-weight: bold; margin-bottom: 8px; }
 .tag-unused { background-color: #28a745; }
 .tag-used { background-color: #dc3545; }
 .tag-none { background-color: #6c757d; }
 
-.info-section-title { font-weight: bold; color: #4a2c11; margin-top: 10px; font-size: 14px; border-left: 4px solid #8b5a2b; padding-left: 6px; }
-.info-text { font-size: 13px; color: #333; line-height: 1.4; margin: 4px 0 10px 0; }
+.info-section-title { font-weight: bold; color: #4a2c11; margin-top: 8px; font-size: 13px; border-left: 4px solid #8b5a2b; padding-left: 6px; }
+.info-text { font-size: 12px; color: #333; line-height: 1.3; margin: 3px 0 8px 0; }
 
 /* インフォ用 3x3 グリッド */
 .move-grid {
     display: grid;
-    grid-template-columns: repeat(3, 36px);
-    grid-template-rows: repeat(3, 36px);
-    gap: 4px;
+    grid-template-columns: repeat(3, 32px);
+    grid-template-rows: repeat(3, 32px);
+    gap: 3px;
     justify-content: center;
-    margin: 10px auto;
+    margin: 8px auto;
     background: #f9f9f9;
-    padding: 6px;
+    padding: 4px;
     border-radius: 6px;
     border: 1px solid #ddd;
 }
 .move-cell {
-    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 4px; border: 1px solid #eee; position: relative;
+    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 4px; border: 1px solid #eee; position: relative;
 }
-.move-cell.center-cell { background: #f0d9b5; font-size: 11px; font-weight: bold; color: #555; }
-.move-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.move-cell.center-cell { background: #f0d9b5; font-size: 10px; font-weight: bold; color: #555; }
+.move-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 
 /* 凡例 */
-.legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; justify-content: center; margin-top: 4px; color: #555; }
-.legend-item { display: flex; align-items: center; gap: 3px; }
-.legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10px; justify-content: center; margin-top: 4px; color: #555; }
+.legend-item { display: flex; align-items: center; gap: 2px; }
+.legend-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
 /* 画面下部スキル操作 */
 #skill-control-wrapper {
-    min-height: 60px;
-    margin-top: 10px;
+    min-height: 50px;
+    margin-top: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 .skill-box {
-    background-color: #e3f2fd; border: 2px solid #2196f3; padding: 10px 20px; border-radius: 8px; font-weight: bold; display: flex; align-items: center; gap: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    background-color: #e3f2fd; border: 2px solid #2196f3; padding: 6px 14px; border-radius: 8px; font-weight: bold; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 13px;
 }
-.skill-btn { background-color: #9c27b0 !important; font-weight: bold; font-size: 16px; padding: 8px 16px; border: none; color: white; border-radius: 4px; cursor: pointer; }
+.skill-btn { background-color: #9c27b0 !important; font-weight: bold; font-size: 14px; padding: 6px 12px; border: none; color: white; border-radius: 4px; cursor: pointer; }
 
 /* モーダル */
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-content { background: white; padding: 25px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.modal-content { background: white; padding: 20px; border-radius: 12px; width: 290px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+
+/* ==========================================
+   📱 スマホ・タブレット用レスポンシブ (縦画面)
+   ========================================== */
+@media screen and (max-width: 768px) {
+    body {
+        padding: 5px;
+        overflow-y: auto; /* スマホ時はスクロールを許可 */
+    }
+
+    .game-layout {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin: 5px auto;
+    }
+
+    /* 盤面を画面幅いっぱいに収める（画面幅95%に合わせて高さを自動設定） */
+    #board {
+        width: min(94vw, 400px);
+        height: calc(min(94vw, 400px) * 0.8);
+    }
+
+    /* スマホでは右側インフォパネルを下に回してコンパクト化 */
+    .info-box {
+        width: min(94vw, 400px);
+        min-height: auto;
+        padding: 10px;
+    }
+
+    .info-empty {
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+}
