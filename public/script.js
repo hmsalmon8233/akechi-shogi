@@ -13,7 +13,6 @@ let selectedBoardPiece = null;
 let selectedCapturedIndex = null; 
 let skillTargetPieces = [];
 
-// 駒の詳細データ定義（移動ドット＆スキル情報）
 const PIECE_DATA = {
     'K': {
         name: '王',
@@ -36,9 +35,8 @@ const PIECE_DATA = {
     'S': {
         name: 'シンゲン',
         skillName: '風林火山',
-        skillDesc: '場に「うんち」があるとき「貫通」になる。場の相手のキャラ数が自分より多いとき移動範囲増加（左右＋1、前＋1）。',
-        moves: [3, 2, 3, 0, 0, 1, 1, 1],
-        note: '※条件達成で前3/左右1に強化'
+        skillDesc: '場の相手のキャラ数が自分より多いとき移動範囲増加（前＋1、左右＋1）。',
+        moves: [3, 2, 3, 0, 0, 1, 1, 1]
     },
     'Y': {
         name: 'ヨシツネ',
@@ -48,7 +46,15 @@ const PIECE_DATA = {
     }
 };
 
-socket.on('connect', () => { myId = socket.id; });
+socket.on('connect', () => { 
+    myId = socket.id; 
+});
+
+function joinPlayer() { socket.emit('join-player'); }
+function joinSpectator() { socket.emit('join-spectator'); }
+function leaveRoom() { socket.emit('leave-room'); }
+function startGame() { socket.emit('start-game'); }
+function returnToLobby() { socket.emit('return-to-lobby'); }
 
 socket.on('room-update', (state) => {
     currentRoom = state;
@@ -64,16 +70,10 @@ socket.on('room-update', (state) => {
     });
 
     const isPlayer = (state.player1?.id === myId || state.player2?.id === myId);
-    document.getElementById('btn-start').style.display = (isPlayer && state.player1 && state.player2) ? 'inline-block' : 'none';
+    document.getElementById('btn-start').style.display = (isPlayer && state.player1 && state.player2 && state.phase === 'lobby') ? 'inline-block' : 'none';
 
     if (currentRoom.phase === 'setup' && currentRoom.gameStarted) checkWaitStatus();
 });
-
-function joinPlayer() { socket.emit('join-player'); }
-function joinSpectator() { socket.emit('join-spectator'); }
-function leaveRoom() { socket.emit('leave-room'); }
-function startGame() { socket.emit('start-game'); }
-function returnToLobby() { socket.emit('return-to-lobby'); }
 
 socket.on('game-started', (state) => {
     currentRoom = state;
@@ -120,14 +120,11 @@ function renderPalette() {
     document.getElementById('btn-confirm-setup').disabled = (setupPieces.length > 0);
 }
 
-// 盤面上での駒描画（中央に名前＋すぐ下に「済」、端に3x3移動ドット●）
 function renderTilePieceContent(piece) {
     const data = PIECE_DATA[piece.type];
     if (!data) return '';
 
-    // 使用済みの場合はバッジHTMLを用意
     const badgeHtml = piece.hasUsedSkill ? `<span class="used-badge">済</span>` : '';
-
     const moves = data.moves;
     const gridIndices = [
         moves[0], moves[1], moves[2],
@@ -139,21 +136,14 @@ function renderTilePieceContent(piece) {
         if (val === 1) return 'dot-1';
         if (val === 2) return 'dot-2';
         if (val === 3) return 'dot-3';
-        if (val === 99) return 'dot-inf';
         return '';
     };
 
     let gridHtml = '<div class="tile-grid">';
     gridIndices.forEach((val, idx) => {
         if (idx === 4) {
-            // 中央セル：名前のすぐ下に「済」バッジを配置
-            gridHtml += `
-                <div class="tile-cell tile-center-name">
-                    <span>${data.name}</span>
-                    ${badgeHtml}
-                </div>`;
+            gridHtml += `<div class="tile-cell tile-center-name"><span>${data.name}</span>${badgeHtml}</div>`;
         } else {
-            // 端のセル：移動範囲のドット（●）
             const dotCls = getDotClass(val);
             const dotSpan = dotCls ? `<span class="tile-move-dot ${dotCls}"></span>` : '';
             gridHtml += `<div class="tile-cell">${dotSpan}</div>`;
@@ -164,14 +154,12 @@ function renderTilePieceContent(piece) {
     return gridHtml;
 }
 
-// 初期配置ボード描画（プレイヤー2は反転）
 function renderSetupBoard() {
     const boardEl = document.getElementById('board');
     boardEl.innerHTML = '';
 
     for (let vY = 0; vY < 4; vY++) {
         for (let vX = 0; vX < 5; vX++) {
-            // プレイヤー2（second）の場合は座標を反転させて手前を自陣にする
             const bX = (myRole === 'second') ? 4 - vX : vX;
             const bY = (myRole === 'second') ? 3 - vY : vY;
 
@@ -184,9 +172,11 @@ function renderSetupBoard() {
 
             const serverPiece = currentRoom.board[bY][bX];
             if (serverPiece) {
+                // 王(K)などサーバー側で公開されている駒のみ表示
                 tile.innerHTML = renderTilePieceContent(serverPiece);
                 if (serverPiece.owner !== myRole) tile.classList.add('enemy-piece');
             } else {
+                // 自分の未決定配置駒のみ表示（相手の選択は見えない）
                 const placed = placedSetupPieces.find(p => p.x === bX && p.y === bY);
                 if (placed) {
                     tile.innerHTML = renderTilePieceContent({ type: placed.type, owner: myRole, hasUsedSkill: false });
@@ -246,11 +236,15 @@ socket.on('board-updated', (state) => {
     renderPlayingBoard();
 });
 
-socket.on('prompt-nobunaga', () => { document.getElementById('nobunaga-modal').style.display = 'flex'; });
+socket.on('prompt-nobunaga', () => { 
+    document.getElementById('nobunaga-modal').style.display = 'flex'; 
+});
+
 function respondNobunaga(cancel) {
     document.getElementById('nobunaga-modal').style.display = 'none';
     socket.emit('respond-nobunaga', { cancel });
 }
+
 socket.on('skill-cancelled', (data) => { alert(data.message); });
 
 socket.on('game-over', (state) => {
@@ -287,19 +281,16 @@ function updateGameStatus() {
     else document.getElementById('game-status').innerText = `【相手のターン】 相手の操作を待っています...`;
 }
 
-// 移動範囲計算
 function getValidMoves(x, y, piece) {
     const validMoves = [];
     const dir = (piece.owner === 'first') ? -1 : 1;
     const type = piece.type;
 
     let shingenExtra = 0;
-    let isPiercing = false;
     if (type === 'S') {
         const myCount = countPiecesOnBoard(piece.owner);
         const enemyCount = countPiecesOnBoard(piece.owner === 'first' ? 'second' : 'first');
         if (enemyCount > myCount) shingenExtra = 1;
-        isPiercing = checkPoopOnBoard();
     }
 
     const checkMove = (dx, dy, maxDist) => {
@@ -312,7 +303,7 @@ function getValidMoves(x, y, piece) {
                 validMoves.push({ x: nx, y: ny });
             } else {
                 if (target.owner !== piece.owner) validMoves.push({ x: nx, y: ny });
-                if (!isPiercing) break;
+                break;
             }
         }
     };
@@ -340,12 +331,6 @@ function countPiecesOnBoard(owner) {
     return c;
 }
 
-function checkPoopOnBoard() {
-    for (let y = 0; y < 4; y++) for (let x = 0; x < 5; x++) if (currentRoom.board[y][x]?.type === 'POOP') return true;
-    return false;
-}
-
-// 対局中ボード描画（プレイヤー2は反転）
 function renderPlayingBoard() {
     renderHands();
     const boardEl = document.getElementById('board');
@@ -359,7 +344,6 @@ function renderPlayingBoard() {
 
     for (let vY = 0; vY < 4; vY++) {
         for (let vX = 0; vX < 5; vX++) {
-            // プレイヤー2（second）の場合は座標を反転させて手前を自陣にする
             const bX = (myRole === 'second') ? 4 - vX : vX;
             const bY = (myRole === 'second') ? 3 - vY : vY;
 
@@ -497,14 +481,13 @@ function showPieceInfo(type, hasUsedSkill) {
         if (val === 1) return 'dot-1';
         if (val === 2) return 'dot-2';
         if (val === 3) return 'dot-3';
-        if (val === 99) return 'dot-inf';
         return '';
     };
 
     const moves = data.moves;
     const gridMoves = [
         moves[0], moves[1], moves[2],
-        moves[3], '駒',     moves[4],
+        moves[3], '駒',    moves[4],
         moves[5], moves[6], moves[7]
     ];
 
@@ -529,10 +512,7 @@ function showPieceInfo(type, hasUsedSkill) {
             <span class="legend-item"><span class="legend-dot dot-1"></span>1マス</span>
             <span class="legend-item"><span class="legend-dot dot-2"></span>2マス</span>
             <span class="legend-item"><span class="legend-dot dot-3"></span>3マス</span>
-            <span class="legend-item"><span class="legend-dot dot-inf"></span>無限</span>
         </div>
-        ${data.note ? `<div style="font-size:11px; color:#d32f2f; text-align:center; margin-top:2px;">${data.note}</div>` : ''}
-
         <div class="info-section-title">スキル：${data.skillName}</div>
         <div class="info-text">${data.skillDesc}</div>
     `;
