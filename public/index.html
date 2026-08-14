@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>明智将棋</title>
+    <title>アケチ将棋</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app">
-        <!-- 待機室 -->
+        <!-- 待合室 -->
         <div id="lobby-screen">
-            <h1>明智将棋 - 待機室</h1>
+            <h1>アケチ将棋 - 待合室</h1>
             <div class="room-container">
                 <div class="player-box">
                     <h3>プレイヤー 1</h3>
@@ -82,13 +82,22 @@
             </div>
         </div>
 
-        <!-- ノブナガのカウンター確認モーダル -->
-        <div id="nobunaga-modal" class="modal" style="display: none;">
+        <!-- ノブナガ発動確認モーダル -->
+        <div id="nobunaga-modal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
-                <h3>第六天魔王</h3>
-                <p>相手がスキルを発動しようとしています！<br>ノブナガのスキルで無効化しますか？</p>
-                <button onclick="respondNobunaga(true)" class="confirm-btn">無効化する！</button>
-                <button onclick="respondNobunaga(false)" class="cancel-btn">見送る</button>
+                <h3>【ノブナガ】スキル無効化確認</h3>
+                    <p>相手がスキルを発動しようとしています！</p>
+        
+                <!-- 追加：発動されたスキルの詳細表示枠 -->
+                <div id="nobunaga-skill-detail" style="background: #f5f5f5; border-left: 4px solid #e74c3c; padding: 10px; margin: 15px 0; text-align: left; font-size: 0.9em; line-height: 1.5;">
+                <!-- JSで動的に追加されます -->
+                </div>
+
+                <p>ノブナガのスキルを発動して無効化しますか？<br><small>（※無効化した場合、ノブナガは「済」になります）</small></p>
+                <div class="modal-buttons">
+                    <button onclick="respondNobunaga(true)" class="btn-danger">無効化する</button>
+                    <button onclick="respondNobunaga(false)" class="btn-secondary">発動を許可する</button>
+                </div>
             </div>
         </div>
     </div>

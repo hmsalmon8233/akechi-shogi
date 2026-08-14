@@ -236,7 +236,18 @@ socket.on('board-updated', (state) => {
     renderPlayingBoard();
 });
 
-socket.on('prompt-nobunaga', () => { 
+socket.on('prompt-nobunaga', (data) => { 
+    const pieceInfo = PIECE_DATA[data.pieceType];
+    const detailEl = document.getElementById('nobunaga-skill-detail');
+
+    if (pieceInfo && detailEl) {
+        detailEl.innerHTML = `
+            <div><strong>使用する駒：</strong>${pieceInfo.name}</div>
+            <div><strong>スキル名：</strong>${pieceInfo.skillName}</div>
+            <div><strong>スキル効果：</strong>${pieceInfo.skillDesc}</div>
+        `;
+    }
+
     document.getElementById('nobunaga-modal').style.display = 'flex'; 
 });
 

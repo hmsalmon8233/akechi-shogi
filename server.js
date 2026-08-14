@@ -210,7 +210,6 @@ io.on('connection', (socket) => {
         const enemyRole = (role === 'first') ? 'second' : 'first';
         const enemySocketId = (enemyRole === 'first') ? room.player1?.id : room.player2?.id;
 
-        // 【修正】相手の場に「未仕様（hasUsedSkill === false）」のノブナガがいるか探す
         let enemyNobunagaPos = null;
         for (let r = 0; r < 4; r++) {
             for (let c = 0; c < 5; c++) {
@@ -248,9 +247,9 @@ io.on('connection', (socket) => {
         };
 
         if (enemyNobunagaPos && enemySocketId) {
-            // ノブナガの位置情報 (nobunagaPos) も記録しておく
             room.pendingSkill = { action: executeSkill, userRole: role, x, y, nobunagaPos: enemyNobunagaPos };
-            io.to(enemySocketId).emit('prompt-nobunaga');
+            // 【修正】発動した駒タイプ (type) を送信する
+            io.to(enemySocketId).emit('prompt-nobunaga', { pieceType: type });
         } else {
             executeSkill();
         }
@@ -260,13 +259,11 @@ io.on('connection', (socket) => {
         if (!room.pendingSkill) return;
 
         if (cancel) {
-            // 1. スキルを発動しようとした駒を「使用済み（済）」にする
             const piece = room.board[room.pendingSkill.y]?.[room.pendingSkill.x];
             if (piece) {
                 piece.hasUsedSkill = true;
             }
 
-            // 2. 【追加】無効化を実行したノブナガ自身も「使用済み（済）」にする
             if (room.pendingSkill.nobunagaPos) {
                 const nobunaga = room.board[room.pendingSkill.nobunagaPos.y]?.[room.pendingSkill.nobunagaPos.x];
                 if (nobunaga && nobunaga.type === 'N') {
@@ -279,7 +276,6 @@ io.on('connection', (socket) => {
                 io.to(userSocketId).emit('skill-cancelled', { message: '相手のノブナガによりスキルが無効化されました！' });
             }
 
-            // 3. 手番は無効化された側に保持する
             room.currentTurnRole = room.pendingSkill.userRole;
             room.pendingSkill = null;
             io.emit('board-updated', room);
