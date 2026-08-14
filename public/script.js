@@ -265,7 +265,7 @@ socket.on('game-over', (state) => {
     if (myRole === 'spectator') {
         document.getElementById('game-status').innerText = `【ゲーム終了】 ${state.winnerRole === 'first' ? '先攻' : '後攻'} の勝利です！`;
     } else {
-        document.getElementById('game-status').innerText = isWinner ? '【勝利！】 相手の王を取ったら勝ち！' : '【敗北...】 王を取られました。';
+        document.getElementById('game-status').innerText = isWinner ? '勝利！！' : '敗北...';
     }
     document.getElementById('btn-return-lobby').style.display = 'inline-block';
     renderPlayingBoard();
