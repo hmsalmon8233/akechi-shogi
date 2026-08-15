@@ -30,9 +30,9 @@ function createInitialRoomState() {
 }
 
 function createInitialBoard() {
-    const board = Array(4).fill(null).map(() => Array(5).fill(null));
+    const board = Array(5).fill(null).map(() => Array(5).fill(null));
     // 王 (K) の初期配置
-    board[3][2] = { type: 'K', owner: 'first', hasUsedSkill: false };
+    board[4][2] = { type: 'K', owner: 'first', hasUsedSkill: false };
     board[0][2] = { type: 'K', owner: 'second', hasUsedSkill: false };
     return board;
 }
@@ -214,7 +214,7 @@ io.on('connection', (socket) => {
         if (type === 'S') {
             let myCount = 0;
             let enemyCount = 0;
-            for (let r = 0; r < 4; r++) {
+            for (let r = 0; r < 5; r++) {
                 for (let c = 0; c < 5; c++) {
                     const p = room.board[r][c];
                     if (p) {
@@ -227,7 +227,7 @@ io.on('connection', (socket) => {
         }
 
         let enemyNobunagaPos = null;
-        for (let r = 0; r < 4; r++) {
+        for (let r = 0; r < 5; r++) {
             for (let c = 0; c < 5; c++) {
                 const p = room.board[r][c];
                 if (p && p.owner === enemyRole && p.type === 'N' && !p.hasUsedSkill) {
@@ -257,7 +257,6 @@ io.on('connection', (socket) => {
                     }
                 }
             }
-            // type === 'S' の場合は hasUsedSkill が true になることでクライアント側 getValidMoves の移動力増加が適用される
 
             room.currentTurnRole = enemyRole;
             io.emit('board-updated', room);

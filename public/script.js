@@ -87,7 +87,7 @@ socket.on('game-started', (state) => {
     else if (state.player2?.id === myId) myRole = state.player2.role;
     else myRole = 'spectator';
 
-    mySetupRow = (myRole === 'first') ? 3 : 0;
+    mySetupRow = (myRole === 'first') ? 4 : 0;
     placedSetupPieces = [];
     setupPieces = ['A', 'N', 'S', 'Y']; 
 
@@ -169,10 +169,10 @@ function renderSetupBoard() {
     const boardEl = document.getElementById('board');
     boardEl.innerHTML = '';
 
-    for (let vY = 0; vY < 4; vY++) {
+    for (let vY = 0; vY < 5; vY++) {
         for (let vX = 0; vX < 5; vX++) {
             const bX = (myRole === 'second') ? 4 - vX : vX;
-            const bY = (myRole === 'second') ? 3 - vY : vY;
+            const bY = (myRole === 'second') ? 4 - vY : vY;
 
             const tile = document.createElement('div');
             tile.className = 'tile';
@@ -313,7 +313,7 @@ function getValidMoves(x, y, piece) {
         for (let step = 1; step <= maxDist; step++) {
             const nx = x + dx * step;
             const ny = y + dy * step;
-            if (nx < 0 || nx >= 5 || ny < 0 || ny >= 4) break;
+            if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) break;
             const target = currentRoom.board[ny][nx];
             if (!target) {
                 validMoves.push({ x: nx, y: ny });
@@ -343,7 +343,7 @@ function getValidMoves(x, y, piece) {
 
 function countPiecesOnBoard(owner) {
     let c = 0;
-    for (let y = 0; y < 4; y++) for (let x = 0; x < 5; x++) if (currentRoom.board[y][x]?.owner === owner) c++;
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (currentRoom.board[y][x]?.owner === owner) c++;
     return c;
 }
 
@@ -358,10 +358,10 @@ function renderPlayingBoard() {
         if (p) validMoves = getValidMoves(selectedBoardPiece.x, selectedBoardPiece.y, p);
     }
 
-    for (let vY = 0; vY < 4; vY++) {
+    for (let vY = 0; vY < 5; vY++) {
         for (let vX = 0; vX < 5; vX++) {
             const bX = (myRole === 'second') ? 4 - vX : vX;
-            const bY = (myRole === 'second') ? 3 - vY : vY;
+            const bY = (myRole === 'second') ? 4 - vY : vY;
 
             const tile = document.createElement('div');
             tile.className = 'tile';

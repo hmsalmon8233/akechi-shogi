@@ -92,11 +92,11 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 }
 .hand-piece-btn.selected { background-color: #ffeb3b; border-color: #d32f2f; }
 
-/* --- 盤面（可変サイズレスポンシブ） --- */
+/* --- 盤面（可変サイズレスポンシブ・5x5正方形） --- */
 #board {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(4, 1fr);
+    grid-template-rows: repeat(5, 1fr);
     gap: 2px;
     justify-content: center;
     background-color: #333;
@@ -104,15 +104,17 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     border-radius: 4px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     
-    /* 画面幅・高さに収まる自動スケーリング (比率 5:4) */
+    /* 5×5用にアスペクト比 1:1 へ変更 */
     width: min(92vw, 485px);
-    height: calc(min(92vw, 485px) * 0.8);
+    height: min(92vw, 485px);
+    aspect-ratio: 1;
 }
 
 /* 盤面のマス目 */
 .tile {
     width: 100%;
     height: 100%;
+    aspect-ratio: 1;
     background-color: #f0d9b5;
     display: flex;
     align-items: center;
@@ -130,8 +132,8 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-columns: 18% 1fr 18%;
-    grid-template-rows: 18% 1fr 18%;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
     align-items: center;
     justify-items: center;
 }
@@ -290,10 +292,11 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
         margin: 5px auto;
     }
 
-    /* 盤面を画面幅いっぱいに収める（画面幅95%に合わせて高さを自動設定） */
+    /* 盤面を正方形でレスポンシブ維持 */
     #board {
         width: min(94vw, 400px);
-        height: calc(min(94vw, 400px) * 0.8);
+        height: min(94vw, 400px);
+        aspect-ratio: 1;
     }
 
     /* スマホでは右側インフォパネルを下に回してコンパクト化 */
