@@ -210,6 +210,22 @@ io.on('connection', (socket) => {
         const enemyRole = (role === 'first') ? 'second' : 'first';
         const enemySocketId = (enemyRole === 'first') ? room.player1?.id : room.player2?.id;
 
+        // シンゲンの条件判定（場の相手キャラ数 > 自分キャラ数）
+        if (type === 'S') {
+            let myCount = 0;
+            let enemyCount = 0;
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 5; c++) {
+                    const p = room.board[r][c];
+                    if (p) {
+                        if (p.owner === role) myCount++;
+                        else if (p.owner === enemyRole) enemyCount++;
+                    }
+                }
+            }
+            if (enemyCount <= myCount) return;
+        }
+
         let enemyNobunagaPos = null;
         for (let r = 0; r < 4; r++) {
             for (let c = 0; c < 5; c++) {
@@ -241,6 +257,7 @@ io.on('connection', (socket) => {
                     }
                 }
             }
+            // type === 'S' の場合は hasUsedSkill が true になることでクライアント側 getValidMoves の移動力増加が適用される
 
             room.currentTurnRole = enemyRole;
             io.emit('board-updated', room);
@@ -248,7 +265,6 @@ io.on('connection', (socket) => {
 
         if (enemyNobunagaPos && enemySocketId) {
             room.pendingSkill = { action: executeSkill, userRole: role, x, y, nobunagaPos: enemyNobunagaPos };
-            // 【修正】発動した駒タイプ (type) を送信する
             io.to(enemySocketId).emit('prompt-nobunaga', { pieceType: type });
         } else {
             executeSkill();

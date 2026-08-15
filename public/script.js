@@ -35,7 +35,7 @@ const PIECE_DATA = {
     'S': {
         name: 'シンゲン',
         skillName: '風林火山',
-        skillDesc: '場の相手のキャラ数が自分より多いとき移動範囲増加（前＋1、左右＋1）。',
+        skillDesc: '場の相手のキャラ数が自分より多いときにスキル発動可能。移動範囲増加（←↑→+1）。',
         moves: [3, 2, 3, 0, 0, 1, 1, 1]
     },
     'Y': {
@@ -120,12 +120,23 @@ function renderPalette() {
     document.getElementById('btn-confirm-setup').disabled = (setupPieces.length > 0);
 }
 
+// 駒の動的な移動範囲データを取得（スキル発動時の補正を反映）
+function getPieceMoves(type, hasUsedSkill) {
+    const moves = [...PIECE_DATA[type].moves];
+    if (type === 'S' && hasUsedSkill) {
+        moves[1] = 3; // 上: 2 -> 3 (緑● / 3マス)
+        moves[3] = 1; // 左: 0 -> 1 (赤● / 1マス)
+        moves[4] = 1; // 右: 0 -> 1 (赤● / 1マス)
+    }
+    return moves;
+}
+
 function renderTilePieceContent(piece) {
     const data = PIECE_DATA[piece.type];
     if (!data) return '';
 
     const badgeHtml = piece.hasUsedSkill ? `<span class="used-badge">済</span>` : '';
-    const moves = data.moves;
+    const moves = getPieceMoves(piece.type, piece.hasUsedSkill);
     const gridIndices = [
         moves[0], moves[1], moves[2],
         moves[3], 'NAME',   moves[4],
@@ -172,11 +183,10 @@ function renderSetupBoard() {
 
             const serverPiece = currentRoom.board[bY][bX];
             if (serverPiece) {
-                // 王(K)などサーバー側で公開されている駒のみ表示
                 tile.innerHTML = renderTilePieceContent(serverPiece);
-                if (serverPiece.owner !== myRole) tile.classList.add('enemy-piece');
+                const isEnemy = (myRole === 'second') ? (serverPiece.owner === 'first') : (serverPiece.owner === 'second');
+                if (isEnemy) tile.classList.add('enemy-piece');
             } else {
-                // 自分の未決定配置駒のみ表示（相手の選択は見えない）
                 const placed = placedSetupPieces.find(p => p.x === bX && p.y === bY);
                 if (placed) {
                     tile.innerHTML = renderTilePieceContent({ type: placed.type, owner: myRole, hasUsedSkill: false });
@@ -297,12 +307,7 @@ function getValidMoves(x, y, piece) {
     const dir = (piece.owner === 'first') ? -1 : 1;
     const type = piece.type;
 
-    let shingenExtra = 0;
-    if (type === 'S') {
-        const myCount = countPiecesOnBoard(piece.owner);
-        const enemyCount = countPiecesOnBoard(piece.owner === 'first' ? 'second' : 'first');
-        if (enemyCount > myCount) shingenExtra = 1;
-    }
+    let shingenExtra = (type === 'S' && piece.hasUsedSkill) ? 1 : 0;
 
     const checkMove = (dx, dy, maxDist) => {
         for (let step = 1; step <= maxDist; step++) {
@@ -364,7 +369,8 @@ function renderPlayingBoard() {
             const piece = currentRoom.board[bY][bX];
             if (piece) {
                 tile.innerHTML = renderTilePieceContent(piece);
-                if (piece.owner !== myRole) tile.classList.add('enemy-piece');
+                const isEnemy = (myRole === 'second') ? (piece.owner === 'first') : (piece.owner === 'second');
+                if (isEnemy) tile.classList.add('enemy-piece');
             }
 
             if (selectedBoardPiece && selectedBoardPiece.x === bX && selectedBoardPiece.y === bY) {
@@ -495,7 +501,7 @@ function showPieceInfo(type, hasUsedSkill) {
         return '';
     };
 
-    const moves = data.moves;
+    const moves = getPieceMoves(type, hasUsedSkill);
     const gridMoves = [
         moves[0], moves[1], moves[2],
         moves[3], '駒',    moves[4],
@@ -541,7 +547,13 @@ function triggerSelectedSkill() {
         alert('【牛若丸】入れ替える味方の駒を2体選択してください。');
         skillTargetPieces = [{ dummy: true }];
     } else if (piece.type === 'S') {
-        socket.emit('use-skill', { type: 'S', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [] });
+        const myCount = countPiecesOnBoard(piece.owner);
+        const enemyCount = countPiecesOnBoard(piece.owner === 'first' ? 'second' : 'first');
+        if (enemyCount > myCount) {
+            socket.emit('use-skill', { type: 'S', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [] });
+        } else {
+            alert('【風林火山】相手のキャラ数が自分より多くないため、スキルを発動できません。');
+        }
     }
 }
 
