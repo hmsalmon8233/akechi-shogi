@@ -180,6 +180,21 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     line-height: 1;
 }
 
+/* スキル封印状態バッジ（「封」） */
+.tile .sealed-badge {
+    position: static !important;
+    display: inline-block;
+    font-size: clamp(7px, 2vw, 9px);
+    color: #7b1fa2;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 0px 2px;
+    border-radius: 3px;
+    border: 1px solid #7b1fa2;
+    margin-top: 1px;
+    line-height: 1;
+}
+
 /* マスの端に表示される移動ドット（●） */
 .tile-move-dot {
     width: clamp(4px, 1.5vw, 7px);

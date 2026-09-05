@@ -3,10 +3,9 @@ const socket = io();
 let myId = null;
 let currentRoom = null;
 let myRole = null; 
-let mySetupRow = null; 
 let selectedHandPiece = null;
 
-let setupPieces = ['A', 'N', 'S', 'Y']; 
+let setupPieces = ['A', 'N', 'S', 'Y', 'KE']; 
 let placedSetupPieces = []; 
 
 let selectedBoardPiece = null; 
@@ -43,6 +42,12 @@ const PIECE_DATA = {
         skillName: '牛若丸',
         skillDesc: '味方二体の場所を交換する。',
         moves: [2, 2, 2, 2, 2, 0, 2, 0]
+    },
+    'KE': {
+        name: 'ケンシン',
+        skillName: '毘沙門天',
+        skillDesc: '相手一体をスキル封印状態にする。（スキル使用不可・移動は可能）',
+        moves: [2, 1, 3, 3, 0, 2, 0, 2]
     }
 };
 
@@ -87,15 +92,14 @@ socket.on('game-started', (state) => {
     else if (state.player2?.id === myId) myRole = state.player2.role;
     else myRole = 'spectator';
 
-    mySetupRow = (myRole === 'first') ? 4 : 0;
     placedSetupPieces = [];
-    setupPieces = ['A', 'N', 'S', 'Y']; 
+    setupPieces = ['A', 'N', 'S', 'Y', 'KE']; 
 
     startSetupPhase();
 });
 
 function startSetupPhase() {
-    document.getElementById('game-status').innerText = `【初期配置】手前1段に駒を配置してください (${myRole === 'first' ? '先攻' : myRole === 'second' ? '後攻' : '観戦'})`;
+    document.getElementById('game-status').innerText = `【初期配置】手前2段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : myRole === 'second' ? '後攻' : '観戦'})`;
     if (myRole !== 'spectator') {
         document.getElementById('setup-palette').style.display = 'block';
         renderPalette();
@@ -113,20 +117,25 @@ function renderPalette() {
         btn.onclick = () => { 
             selectedHandPiece = index; 
             renderPalette();
-            showPieceInfo(type, false);
+            showPieceInfo(type, false, false);
         };
         paletteEl.appendChild(btn);
     });
     document.getElementById('btn-confirm-setup').disabled = (setupPieces.length > 0);
 }
 
-// 駒の動的な移動範囲データを取得（スキル発動時の補正を反映）
+function isSetupZone(x, y, role) {
+    if (role === 'first') return (y >= 3 && !(x === 2 && y === 4));
+    if (role === 'second') return (y <= 1 && !(x === 2 && y === 0));
+    return false;
+}
+
 function getPieceMoves(type, hasUsedSkill) {
     const moves = [...PIECE_DATA[type].moves];
     if (type === 'S' && hasUsedSkill) {
-        moves[1] = 3; // 上: 2 -> 3 (緑● / 3マス)
-        moves[3] = 1; // 左: 0 -> 1 (赤● / 1マス)
-        moves[4] = 1; // 右: 0 -> 1 (赤● / 1マス)
+        moves[1] = 3; 
+        moves[3] = 1; 
+        moves[4] = 1; 
     }
     return moves;
 }
@@ -135,7 +144,13 @@ function renderTilePieceContent(piece) {
     const data = PIECE_DATA[piece.type];
     if (!data) return '';
 
-    const badgeHtml = piece.hasUsedSkill ? `<span class="used-badge">済</span>` : '';
+    let badgeHtml = '';
+    if (piece.isSealed) {
+        badgeHtml = `<span class="sealed-badge">封</span>`;
+    } else if (piece.hasUsedSkill) {
+        badgeHtml = `<span class="used-badge">済</span>`;
+    }
+
     const moves = getPieceMoves(piece.type, piece.hasUsedSkill);
     const gridIndices = [
         moves[0], moves[1], moves[2],
@@ -177,7 +192,7 @@ function renderSetupBoard() {
             const tile = document.createElement('div');
             tile.className = 'tile';
 
-            if (myRole !== 'spectator' && bY === mySetupRow && bX !== 2) {
+            if (myRole !== 'spectator' && isSetupZone(bX, bY, myRole)) {
                 tile.classList.add('my-zone');
             }
 
@@ -189,7 +204,7 @@ function renderSetupBoard() {
             } else {
                 const placed = placedSetupPieces.find(p => p.x === bX && p.y === bY);
                 if (placed) {
-                    tile.innerHTML = renderTilePieceContent({ type: placed.type, owner: myRole, hasUsedSkill: false });
+                    tile.innerHTML = renderTilePieceContent({ type: placed.type, owner: myRole, hasUsedSkill: false, isSealed: false });
                 }
             }
             tile.onclick = () => onSetupTileClick(bX, bY);
@@ -199,7 +214,7 @@ function renderSetupBoard() {
 }
 
 function onSetupTileClick(x, y) {
-    if (myRole === 'spectator' || y !== mySetupRow || x === 2) return;
+    if (myRole === 'spectator' || !isSetupZone(x, y, myRole)) return;
     const existingIndex = placedSetupPieces.findIndex(p => p.x === x && p.y === y);
     if (existingIndex !== -1) {
         const removed = placedSetupPieces.splice(existingIndex, 1)[0];
@@ -336,6 +351,13 @@ function getValidMoves(x, y, piece) {
         checkMove(0, -dir, 1); checkMove(-1, -dir, 1); checkMove(1, -dir, 1);
     } else if (type === 'Y') {
         checkMove(0, dir, 2); checkMove(-1, dir, 2); checkMove(1, dir, 2); checkMove(-1, 0, 2); checkMove(1, 0, 2); checkMove(0, -dir, 2);
+    } else if (type === 'KE') {
+        checkMove(-1, dir, 2);  // 前左 2
+        checkMove(0, dir, 1);   // 前 1
+        checkMove(1, dir, 3);   // 前右 3
+        checkMove(-1, 0, 3);    // 左 3
+        checkMove(-1, -dir, 2); // 左下 2
+        checkMove(1, -dir, 2);  // 右下 2
     }
 
     return validMoves;
@@ -404,7 +426,7 @@ function renderHands() {
             btn.className = 'hand-piece-btn' + (selectedCapturedIndex === idx ? ' selected' : '');
             btn.innerText = PIECE_DATA[type].name;
             btn.onclick = () => {
-                showPieceInfo(type, false);
+                showPieceInfo(type, false, false);
                 if (currentRoom.currentTurnRole !== myRole) return;
                 selectedBoardPiece = null;
                 skillTargetPieces = [];
@@ -424,7 +446,7 @@ function renderHands() {
             const btn = document.createElement('button');
             btn.className = 'hand-piece-btn';
             btn.innerText = PIECE_DATA[type].name;
-            btn.onclick = () => showPieceInfo(type, false);
+            btn.onclick = () => showPieceInfo(type, false, false);
             enemyHandEl.appendChild(btn);
         });
     }
@@ -435,7 +457,7 @@ function onPlayingTileClick(x, y) {
     const targetPiece = currentRoom.board[y][x];
 
     if (targetPiece) {
-        showPieceInfo(targetPiece.type, targetPiece.hasUsedSkill);
+        showPieceInfo(targetPiece.type, targetPiece.hasUsedSkill, targetPiece.isSealed);
     }
 
     if (myRole === 'spectator' || currentRoom.currentTurnRole !== myRole) return;
@@ -467,7 +489,7 @@ function onPlayingTileClick(x, y) {
         selectedCapturedIndex = null;
         skillTargetPieces = [];
 
-        if (!targetPiece.hasUsedSkill && targetPiece.type !== 'K' && targetPiece.type !== 'N') {
+        if (!targetPiece.hasUsedSkill && !targetPiece.isSealed && targetPiece.type !== 'K' && targetPiece.type !== 'N') {
             document.getElementById('skill-control').style.display = 'flex';
             document.getElementById('skill-desc').innerText = `【${PIECE_DATA[targetPiece.type].skillName}】`;
         } else {
@@ -478,7 +500,7 @@ function onPlayingTileClick(x, y) {
     }
 }
 
-function showPieceInfo(type, hasUsedSkill) {
+function showPieceInfo(type, hasUsedSkill, isSealed) {
     const data = PIECE_DATA[type];
     if (!data) return;
 
@@ -488,6 +510,8 @@ function showPieceInfo(type, hasUsedSkill) {
     let tagHtml = '';
     if (type === 'K') {
         tagHtml = '<span class="info-status-tag tag-none">スキルなし</span>';
+    } else if (isSealed) {
+        tagHtml = '<span class="info-status-tag tag-used" style="background-color: #7b1fa2;">スキル封印中</span>';
     } else if (hasUsedSkill) {
         tagHtml = '<span class="info-status-tag tag-used">スキル使用済み</span>';
     } else {
@@ -546,6 +570,9 @@ function triggerSelectedSkill() {
     } else if (piece.type === 'Y') {
         alert('【牛若丸】入れ替える味方の駒を2体選択してください。');
         skillTargetPieces = [{ dummy: true }];
+    } else if (piece.type === 'KE') {
+        alert('【毘沙門天】スキルを封印する相手の駒を1体選択してください。');
+        skillTargetPieces = [{ dummy: true }];
     } else if (piece.type === 'S') {
         const myCount = countPiecesOnBoard(piece.owner);
         const enemyCount = countPiecesOnBoard(piece.owner === 'first' ? 'second' : 'first');
@@ -576,6 +603,10 @@ function handleSkillTargetClick(x, y) {
             if (skillTargetPieces.length === 2) {
                 socket.emit('use-skill', { type: 'Y', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
             }
+        }
+    } else if (piece.type === 'KE') {
+        if (target && target.owner !== myRole && target.type !== 'K') {
+            socket.emit('use-skill', { type: 'KE', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
         }
     }
     renderPlayingBoard();

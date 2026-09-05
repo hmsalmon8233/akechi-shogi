@@ -16,7 +16,7 @@ function createInitialRoomState() {
         player2: null,
         spectators: [],
         gameStarted: false,
-        phase: 'lobby', // 'lobby' | 'setup' | 'playing' | 'ended'
+        phase: 'lobby', 
         p1Ready: false,
         p2Ready: false,
         p1Setup: [],
@@ -31,9 +31,8 @@ function createInitialRoomState() {
 
 function createInitialBoard() {
     const board = Array(5).fill(null).map(() => Array(5).fill(null));
-    // 王 (K) の初期配置
-    board[4][2] = { type: 'K', owner: 'first', hasUsedSkill: false };
-    board[0][2] = { type: 'K', owner: 'second', hasUsedSkill: false };
+    board[4][2] = { type: 'K', owner: 'first', hasUsedSkill: false, isSealed: false };
+    board[0][2] = { type: 'K', owner: 'second', hasUsedSkill: false, isSealed: false };
     return board;
 }
 
@@ -139,10 +138,10 @@ io.on('connection', (socket) => {
 
         if (room.p1Ready && room.p2Ready) {
             room.p1Setup.forEach(p => {
-                room.board[p.y][p.x] = { type: p.type, owner: 'first', hasUsedSkill: false };
+                room.board[p.y][p.x] = { type: p.type, owner: 'first', hasUsedSkill: false, isSealed: false };
             });
             room.p2Setup.forEach(p => {
-                room.board[p.y][p.x] = { type: p.type, owner: 'second', hasUsedSkill: false };
+                room.board[p.y][p.x] = { type: p.type, owner: 'second', hasUsedSkill: false, isSealed: false };
             });
 
             room.phase = 'playing';
@@ -193,7 +192,7 @@ io.on('connection', (socket) => {
         if (idx === -1 || room.board[toY][toX] !== null) return;
 
         hand.splice(idx, 1);
-        room.board[toY][toX] = { type, owner: role, hasUsedSkill: false };
+        room.board[toY][toX] = { type, owner: role, hasUsedSkill: false, isSealed: false };
 
         room.currentTurnRole = (role === 'first') ? 'second' : 'first';
         io.emit('board-updated', room);
@@ -205,12 +204,11 @@ io.on('connection', (socket) => {
         if (!role || room.currentTurnRole !== role) return;
 
         const piece = room.board[y][x];
-        if (!piece || piece.owner !== role || piece.hasUsedSkill) return;
+        if (!piece || piece.owner !== role || piece.hasUsedSkill || piece.isSealed) return;
 
         const enemyRole = (role === 'first') ? 'second' : 'first';
         const enemySocketId = (enemyRole === 'first') ? room.player1?.id : room.player2?.id;
 
-        // シンゲンの条件判定（場の相手キャラ数 > 自分キャラ数）
         if (type === 'S') {
             let myCount = 0;
             let enemyCount = 0;
@@ -230,7 +228,7 @@ io.on('connection', (socket) => {
         for (let r = 0; r < 5; r++) {
             for (let c = 0; c < 5; c++) {
                 const p = room.board[r][c];
-                if (p && p.owner === enemyRole && p.type === 'N' && !p.hasUsedSkill) {
+                if (p && p.owner === enemyRole && p.type === 'N' && !p.hasUsedSkill && !p.isSealed) {
                     enemyNobunagaPos = { x: c, y: r };
                     break;
                 }
@@ -254,6 +252,13 @@ io.on('connection', (socket) => {
                     if (p1 && p2 && p1.owner === role && p2.owner === role) {
                         room.board[targets[0].y][targets[0].x] = p2;
                         room.board[targets[1].y][targets[1].x] = p1;
+                    }
+                }
+            } else if (type === 'KE') {
+                if (targets.length === 1) {
+                    const targetPiece = room.board[targets[0].y][targets[0].x];
+                    if (targetPiece && targetPiece.owner === enemyRole) {
+                        targetPiece.isSealed = true;
                     }
                 }
             }
