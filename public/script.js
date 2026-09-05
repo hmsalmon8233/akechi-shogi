@@ -99,7 +99,7 @@ socket.on('game-started', (state) => {
 });
 
 function startSetupPhase() {
-    document.getElementById('game-status').innerText = `【初期配置】手前2段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : myRole === 'second' ? '後攻' : '観戦'})`;
+    document.getElementById('game-status').innerText = `【初期配置】手前1段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : myRole === 'second' ? '後攻' : '観戦'})`;
     if (myRole !== 'spectator') {
         document.getElementById('setup-palette').style.display = 'block';
         renderPalette();
@@ -125,8 +125,8 @@ function renderPalette() {
 }
 
 function isSetupZone(x, y, role) {
-    if (role === 'first') return (y >= 3 && !(x === 2 && y === 4));
-    if (role === 'second') return (y <= 1 && !(x === 2 && y === 0));
+    if (role === 'first') return (y === 4 && x !== 2);
+    if (role === 'second') return (y === 0 && x !== 2);
     return false;
 }
 
