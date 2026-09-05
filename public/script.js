@@ -121,7 +121,9 @@ function renderPalette() {
         };
         paletteEl.appendChild(btn);
     });
-    document.getElementById('btn-confirm-setup').disabled = (setupPieces.length > 0);
+    
+    // 【修正箇所】4体配置完了（placedSetupPieces.length === 4）でボタンを有効化
+    document.getElementById('btn-confirm-setup').disabled = (placedSetupPieces.length !== 4);
 }
 
 function isSetupZone(x, y, role) {
