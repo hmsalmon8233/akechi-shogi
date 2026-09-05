@@ -38,14 +38,17 @@ function createInitialBoard() {
 
 function removeFromRoom(socketId) {
     let changed = false;
+    let playerChanged = false; // ★ プレイヤーが離脱したかどうかのフラグ
 
     if (room.player1 && room.player1.id === socketId) {
         room.player1 = null;
         changed = true;
+        playerChanged = true;
     }
     if (room.player2 && room.player2.id === socketId) {
         room.player2 = null;
         changed = true;
+        playerChanged = true;
     }
 
     const prevSpecCount = room.spectators.length;
@@ -54,7 +57,8 @@ function removeFromRoom(socketId) {
         changed = true;
     }
 
-    if (changed && room.phase !== 'lobby') {
+    // ★ 観戦者ではなく「プレイヤー」が抜けた場合のみゲームを中断してロビーに戻す
+    if (playerChanged && room.phase !== 'lobby') {
         room.gameStarted = false;
         room.phase = 'lobby';
         room.p1Ready = false;
@@ -87,14 +91,22 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-spectator', () => {
-        if (room.player1?.id === socket.id) room.player1 = null;
-        if (room.player2?.id === socket.id) room.player2 = null;
+        // ★ プレイヤー登録されている場合は弾き、観戦者リストに追加
+        if (room.player1?.id === socket.id || room.player2?.id === socket.id) return;
 
         if (!room.spectators.some(s => s.id === socket.id)) {
             room.spectators.push({ id: socket.id, name: `観戦者 (${socket.id.slice(0, 4)})` });
         }
 
         io.emit('room-update', room);
+
+        // ★ ゲーム中なら新しく入った観戦者に画面を同期
+        if (room.gameStarted) {
+            socket.emit('game-started', room);
+            if (room.phase === 'playing') {
+                socket.emit('board-updated', room);
+            }
+        }
     });
 
     socket.on('leave-room', () => {
