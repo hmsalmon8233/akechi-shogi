@@ -5,7 +5,7 @@ let currentRoom = null;
 let myRole = null; 
 let selectedHandPiece = null;
 
-let setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR']; 
+let setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
 let placedSetupPieces = []; 
 
 let selectedBoardPiece = null; 
@@ -20,6 +20,8 @@ const PIECE_DATA = {
     'Y': { name: 'ヨシツネ', skillName: '牛若丸', skillDesc: '味方二体の場所を交換する。', moves: [2, 2, 2, 2, 2, 0, 2, 0] },
     'KE': { name: 'ケンシン', skillName: '毘沙門天', skillDesc: '相手一体をスキル封印状態にする。（スキル使用不可・移動は可能）', moves: [2, 1, 3, 3, 0, 2, 0, 2] },
     'YOR': { name: 'ヨリトモ', skillName: '1192つくろう', skillDesc: '盤面の空きマスに「うんち（障害物）」を1つ置く。場にヨシツネがいれば2つ置く。', moves: [0, 1, 0, 1, 1, 3, 3, 3] },
+    'SAI': { name: 'サイゴウ', skillName: 'おいどん', skillDesc: '好きな場所にワープする。', moves: [0, 2, 1, 1, 3, 2, 1, 0] },
+    'RYO': { name: 'リョウマ', skillName: '日本の夜明けは近いぜよ', skillDesc: '相手一体を好きな場所にワープさせる。', moves: [3, 0, 3, 1, 1, 1, 3, 1] },
     'UNCHI': { name: 'うんち', skillName: 'なし', skillDesc: '障害物。キャラクターはここを通ることができず、入ることもできません。', moves: [0, 0, 0, 0, 0, 0, 0, 0] }
 };
 
@@ -122,11 +124,16 @@ function startSetupPhase() {
         document.getElementById('game-status').innerText = `【初期配置】 (${myRole === 'first' ? '先攻' : '後攻'})`;
         const paletteContainer = document.getElementById('setup-palette');
         paletteContainer.style.display = 'block';
-        
-        const redundantText = paletteContainer.querySelectorAll('p, h3, h4, span, div');
-        redundantText.forEach(el => {
-            if (el.id !== 'palette-pieces' && el.innerText.includes('手持ちの駒を選び')) {
-                el.style.display = 'none';
+
+        // 対象の案内文を取得し、1つ目だけ表示を残して2つ目以降を非表示にする
+        const guideElements = Array.from(paletteContainer.querySelectorAll('p, h3, h4, span, div'))
+            .filter(el => el.id !== 'palette-pieces' && el.innerText.includes('手持ちの駒を選び'));
+
+        guideElements.forEach((el, index) => {
+            if (index === 0) {
+                el.style.display = ''; // 1つ目は表示を維持
+            } else {
+                el.style.display = 'none'; // 2つ目以降の重複文のみ削除
             }
         });
 
@@ -420,6 +427,21 @@ function getValidMoves(x, y, piece) {
         checkMove(-1, -dir, 3);
         checkMove(0, -dir, 3); 
         checkMove(1, -dir, 3); 
+    } else if (type === 'SAI') {
+        checkMove(0, dir, 2);   // 前 2
+        checkMove(1, dir, 1);   // 右前 1
+        checkMove(-1, 0, 1);    // 左 1
+        checkMove(1, 0, 3);     // 右 3
+        checkMove(-1, -dir, 2); // 左下 2
+        checkMove(0, -dir, 1);  // 下 1
+    } else if (type === 'RYO') {
+        checkMove(-1, dir, 3);  // 左前 3
+        checkMove(1, dir, 3);   // 右前 3
+        checkMove(-1, 0, 1);    // 左 1
+        checkMove(1, 0, 1);     // 右 1
+        checkMove(-1, -dir, 1); // 左下 1
+        checkMove(0, -dir, 3);  // 下 3
+        checkMove(1, -dir, 1);  // 右下 1
     }
 
     return validMoves;
@@ -654,6 +676,12 @@ function triggerSelectedSkill() {
         const targetCount = hasYoshitsune ? 2 : 1;
         alert(`【1192つくろう】空いているマスを ${targetCount} 箇所選択してください。${hasYoshitsune ? '（場にヨシツネがいるため2つ置けます）' : ''}`);
         skillTargetPieces = [{ dummy: true }];
+    } else if (piece.type === 'SAI') {
+        alert('【おいどん】移動先の空きマスを選択してください。');
+        skillTargetPieces = [{ dummy: true }];
+    } else if (piece.type === 'RYO') {
+        alert('【日本の夜明けは近いぜよ】ワープさせる相手の駒を1体選び、次に移動先の空きマスを選択してください。');
+        skillTargetPieces = [{ dummy: true }];
     }
 }
 
@@ -688,6 +716,23 @@ function handleSkillTargetClick(x, y) {
             if (!skillTargetPieces.some(t => t.x === x && t.y === y)) skillTargetPieces.push({ x, y });
             if (skillTargetPieces.length === maxTargets) {
                 socket.emit('use-skill', { type: 'YOR', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+            }
+        }
+    } else if (piece.type === 'SAI') {
+        // サイゴウ：移動先（空きマス）を1つ選択
+        if (target === null) {
+            socket.emit('use-skill', { type: 'SAI', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+        }
+    } else if (piece.type === 'RYO') {
+        // リョウマ：1人目＝相手の駒、2人目＝移動先の空きマス
+        if (skillTargetPieces.length === 0) {
+            if (target && target.owner !== myRole && target.type !== 'K' && target.type !== 'UNCHI') {
+                skillTargetPieces.push({ x, y });
+            }
+        } else if (skillTargetPieces.length === 1) {
+            if (target === null) {
+                skillTargetPieces.push({ x, y });
+                socket.emit('use-skill', { type: 'RYO', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
             }
         }
     }

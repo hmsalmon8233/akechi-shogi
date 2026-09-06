@@ -286,10 +286,45 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 }
 .skill-btn { background-color: #9c27b0 !important; font-weight: bold; font-size: 14px; padding: 6px 12px; border: none; color: white; border-radius: 4px; cursor: pointer; }
 
-/* モーダル */
-.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-content { background: white; padding: 20px; border-radius: 12px; width: 290px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+/* ノブナガのスキル確認モーダル（画面上部に配置） */
+#nobunaga-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.65); /* 盤面を目立たせつつ上部に注意を惹く暗め背景 */
+    display: none; /* JSの操作で 'flex' に変更されます */
+    justify-content: center;
+    align-items: flex-start; /* 上寄せ配置 */
+    padding-top: 30px; /* 画面上端からの余白 */
+    z-index: 9999;
+}
 
+/* モーダル内カードの装飾と上からのスライドイン効果 */
+#nobunaga-modal .modal-content,
+#nobunaga-modal > div {
+    background: #ffffff;
+    border: 3px solid #e63946; /* 注意を引く赤い枠線 */
+    border-radius: 12px;
+    padding: 20px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    animation: slideDownFromTop 0.25s ease-out;
+}
+
+/* 上から降りてくるアニメーション */
+@keyframes slideDownFromTop {
+    from {
+        transform: translateY(-60px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
 
 /* ==========================================
    📱 スマホ・タブレット用レスポンシブ (縦画面)
