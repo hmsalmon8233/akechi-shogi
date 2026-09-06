@@ -9,10 +9,52 @@ body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
     text-align: center;
     background-color: #f4f4f9;
-    /* スマホで画面全体の無駄なスクロールを防ぐ */
     height: 100dvh;
     overflow-x: hidden;
 }
+
+/* --- モード選択画面 --- */
+#mode-select-screen {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    gap: 30px;
+}
+
+#mode-select-screen h1 {
+    font-size: 2.5rem;
+    color: #333;
+}
+
+.mode-select-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 280px;
+}
+
+.mode-btn {
+    font-size: 18px;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+}
+
+.mode-btn:active {
+    transform: scale(0.98);
+}
+
+.pvp-btn { background-color: #007bff; }
+.cpu-btn { background-color: #28a745; }
+.cpu-random-btn { background-color: #6c757d !important; font-size: 13px !important; padding: 6px 12px !important; }
+.back-btn { background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; font-size: 13px; }
 
 /* --- ロビー・ルーム用設定 --- */
 .room-container { 
@@ -45,7 +87,7 @@ body {
 .cancel-btn { background-color: #6c757d !important; }
 button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 
-/* --- 対局全体レイアウト (デフォルト: PC/タブレット用) --- */
+/* --- 対局全体レイアウト --- */
 .game-layout {
     display: flex;
     justify-content: center;
@@ -64,7 +106,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     max-width: 100%;
 }
 
-/* 持ち駒表示（可変幅に対応） */
 .hand-box {
     margin: 6px 0; 
     padding: 6px 10px; 
@@ -92,7 +133,7 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 }
 .hand-piece-btn.selected { background-color: #ffeb3b; border-color: #d32f2f; }
 
-/* --- 盤面（可変サイズレスポンシブ・5x5正方形） --- */
+/* --- 盤面（5x5正方形） --- */
 #board {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -103,14 +144,11 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     border: 4px solid #333;
     border-radius: 4px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    
-    /* 5×5用にアスペクト比 1:1 へ変更 */
     width: min(92vw, 485px);
     height: min(92vw, 485px);
     aspect-ratio: 1;
 }
 
-/* 盤面のマス目 */
 .tile {
     width: 100%;
     height: 100%;
@@ -127,7 +165,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     overflow: hidden;
 }
 
-/* マス全体を占める 3x3 グリッド */
 .tile-grid {
     width: 100%;
     height: 100%;
@@ -146,7 +183,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     justify-content: center;
 }
 
-/* マスの中央セル（名前＋済マーク） */
 .tile-center-name {
     display: flex;
     flex-direction: column;
@@ -165,7 +201,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     color: #d32f2f;
 }
 
-/* スキル使用済みバッジ */
 .tile .used-badge {
     position: static !important;
     display: inline-block;
@@ -180,7 +215,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     line-height: 1;
 }
 
-/* スキル封印状態バッジ（「封」） */
 .tile .sealed-badge {
     position: static !important;
     display: inline-block;
@@ -195,7 +229,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     line-height: 1;
 }
 
-/* マスの端に表示される移動ドット（●） */
 .tile-move-dot {
     width: clamp(4px, 1.5vw, 7px);
     height: clamp(4px, 1.5vw, 7px);
@@ -203,20 +236,18 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     display: inline-block;
 }
 
-/* 色定義 */
-.dot-1 { background-color: #f44336; } /* 1マス：赤● */
-.dot-2 { background-color: #2196f3; } /* 2マス：青● */
-.dot-3 { background-color: #4caf50; } /* 3マス：緑● */
-.dot-inf { background-color: #000000; } /* 無限：黒● */
+.dot-1 { background-color: #f44336; }
+.dot-2 { background-color: #2196f3; }
+.dot-3 { background-color: #4caf50; }
+.dot-inf { background-color: #000000; }
 
-/* 盤面状態スタイル */
 .tile.movable { background-color: #a5d6a7 !important; }
 .tile.my-zone { background-color: #e8f5e9; }
 .tile.selected { background-color: #ffeb3b !important; }
 .tile.target-selected { background-color: #e1bee7 !important; border: 3px solid #8e24aa; }
 .tile.enemy-piece { transform: rotate(180deg); }
 
-/* 右側インフォメーションパネル */
+/* インフォメーションパネル */
 .info-box {
     width: 280px;
     min-height: 400px;
@@ -249,7 +280,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 .info-section-title { font-weight: bold; color: #4a2c11; margin-top: 8px; font-size: 13px; border-left: 4px solid #8b5a2b; padding-left: 6px; }
 .info-text { font-size: 12px; color: #333; line-height: 1.3; margin: 3px 0 8px 0; }
 
-/* インフォ用 3x3 グリッド */
 .move-grid {
     display: grid;
     grid-template-columns: repeat(3, 32px);
@@ -268,12 +298,10 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 .move-cell.center-cell { background: #f0d9b5; font-size: 10px; font-weight: bold; color: #555; }
 .move-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 
-/* 凡例 */
 .legend { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10px; justify-content: center; margin-top: 4px; color: #555; }
 .legend-item { display: flex; align-items: center; gap: 2px; }
 .legend-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
-/* 画面下部スキル操作 */
 #skill-control-wrapper {
     min-height: 50px;
     margin-top: 6px;
@@ -286,26 +314,24 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
 }
 .skill-btn { background-color: #9c27b0 !important; font-weight: bold; font-size: 14px; padding: 6px 12px; border: none; color: white; border-radius: 4px; cursor: pointer; }
 
-/* ノブナガのスキル確認モーダル（画面上部に配置） */
 #nobunaga-modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.65); /* 盤面を目立たせつつ上部に注意を惹く暗め背景 */
-    display: none; /* JSの操作で 'flex' に変更されます */
+    background-color: rgba(0, 0, 0, 0.65);
+    display: none;
     justify-content: center;
-    align-items: flex-start; /* 上寄せ配置 */
-    padding-top: 30px; /* 画面上端からの余白 */
+    align-items: flex-start;
+    padding-top: 30px;
     z-index: 9999;
 }
 
-/* モーダル内カードの装飾と上からのスライドイン効果 */
 #nobunaga-modal .modal-content,
 #nobunaga-modal > div {
     background: #ffffff;
-    border: 3px solid #e63946; /* 注意を引く赤い枠線 */
+    border: 3px solid #e63946;
     border-radius: 12px;
     padding: 20px;
     width: 90%;
@@ -314,7 +340,6 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     animation: slideDownFromTop 0.25s ease-out;
 }
 
-/* 上から降りてくるアニメーション */
 @keyframes slideDownFromTop {
     from {
         transform: translateY(-60px);
@@ -326,13 +351,10 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
     }
 }
 
-/* ==========================================
-   📱 スマホ・タブレット用レスポンシブ (縦画面)
-   ========================================== */
 @media screen and (max-width: 768px) {
     body {
         padding: 5px;
-        overflow-y: auto; /* スマホ時はスクロールを許可 */
+        overflow-y: auto;
     }
 
     .game-layout {
@@ -342,14 +364,12 @@ button:disabled { background-color: #ccc !important; cursor: not-allowed; }
         margin: 5px auto;
     }
 
-    /* 盤面を正方形でレスポンシブ維持 */
     #board {
         width: min(94vw, 400px);
         height: min(94vw, 400px);
         aspect-ratio: 1;
     }
 
-    /* スマホでは右側インフォパネルを下に回してコンパクト化 */
     .info-box {
         width: min(94vw, 400px);
         min-height: auto;

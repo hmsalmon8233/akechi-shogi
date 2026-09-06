@@ -8,8 +8,18 @@
 </head>
 <body>
     <div id="app">
-        <!-- 待合室 -->
-        <div id="lobby-screen">
+        <!-- モード選択画面 -->
+        <div id="mode-select-screen">
+            <h1>アケチ将棋</h1>
+            <div class="mode-select-container">
+                <button onclick="selectGameMode('pvp')" class="mode-btn pvp-btn">対人戦（オンライン）</button>
+                <button onclick="selectGameMode('cpu')" class="mode-btn cpu-btn">CPU戦（一人でプレイ）</button>
+            </div>
+        </div>
+
+        <!-- 待合室（対人戦用） -->
+        <div id="lobby-screen" style="display: none;">
+            <button onclick="returnToModeSelect()" class="back-btn">モード選択に戻る</button>
             <h1>アケチ将棋 - 待合室</h1>
             <div class="room-container">
                 <div class="player-box">
@@ -40,8 +50,16 @@
 
             <!-- 初期配置用パレット -->
             <div id="setup-palette" style="display: none;" class="palette">
-                <p>手持ちの駒を選び、手前1段の空きマスに配置してください：</p>
+                <p style="font-weight: bold; margin-bottom: 6px;">手持ちの駒を選んで自陣に配置してください</p>
                 <div id="palette-pieces"></div>
+                
+                <!-- CPU戦用：CPU側ランダム配置ボタン -->
+                <div id="cpu-setup-controls" style="display: none; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 10px;">
+                    <p style="font-weight: bold; margin-bottom: 6px;">CPUの駒配置</p>
+                    <button onclick="randomizeCpuSetup()" class="cpu-random-btn">CPUの駒をランダム配置</button>
+                    <span id="cpu-setup-status" style="display: inline-block; margin-left: 8px; font-size: 13px; color: #666;">（未配置）</span>
+                </div>
+
                 <br>
                 <button id="btn-confirm-setup" onclick="confirmSetup()" class="confirm-btn" disabled>準備完了</button>
             </div>
@@ -86,11 +104,9 @@
         <div id="nobunaga-modal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <h3>【ノブナガ】スキル無効化確認</h3>
-                    <p>相手がスキルを発動しようとしています！</p>
+                <p>相手がスキルを発動しようとしています！</p>
         
-                <!-- 追加：発動されたスキルの詳細表示枠 -->
                 <div id="nobunaga-skill-detail" style="background: #f5f5f5; border-left: 4px solid #e74c3c; padding: 10px; margin: 15px 0; text-align: left; font-size: 0.9em; line-height: 1.5;">
-                <!-- JSで動的に追加されます -->
                 </div>
 
                 <p>ノブナガのスキルを発動して無効化しますか？<br><small>（※無効化した場合、ノブナガは「済」になります）</small></p>

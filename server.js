@@ -79,7 +79,6 @@ io.on('connection', (socket) => {
     socket.on('join-player', () => {
         if (room.player1?.id === socket.id || room.player2?.id === socket.id) return;
         
-        // 観戦者リストから除外
         room.spectators = room.spectators.filter(s => s.id !== socket.id);
 
         if (!room.player1) {
@@ -92,7 +91,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-spectator', () => {
-        // プレイヤー枠から離脱させる
         if (room.player1?.id === socket.id) room.player1 = null;
         if (room.player2?.id === socket.id) room.player2 = null;
 
@@ -294,7 +292,6 @@ io.on('connection', (socket) => {
                     });
                 }
             } else if (type === 'SAI') {
-                // サイゴウ：自身を空きマスにワープ
                 if (targets.length === 1) {
                     const to = targets[0];
                     if (room.board[to.y][to.x] === null) {
@@ -303,7 +300,6 @@ io.on('connection', (socket) => {
                     }
                 }
             } else if (type === 'RYO') {
-                // リョウマ：相手1体を指定空きマスにワープ
                 if (targets.length === 2) {
                     const targetPiece = room.board[targets[0].y][targets[0].x];
                     const to = targets[1];

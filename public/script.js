@@ -12,6 +12,11 @@ let selectedBoardPiece = null;
 let selectedCapturedIndex = null; 
 let skillTargetPieces = [];
 
+// --- CPU戦用のローカル状態 ---
+let isCpuMode = false;
+let cpuLocalState = null;
+let cpuPlacedSetupPieces = []; // CPU側の配置用
+
 const PIECE_DATA = {
     'K': { name: '王', skillName: 'なし', skillDesc: 'スキルを持ちません。', moves: [1, 1, 1, 1, 1, 1, 1, 1] },
     'A': { name: 'アケチ', skillName: '本能寺の変', skillDesc: '盤面の相手の駒2体を相手の持ち駒に戻す。', moves: [0, 1, 0, 2, 2, 2, 2, 2] },
@@ -29,7 +34,92 @@ socket.on('connect', () => {
     myId = socket.id; 
 });
 
-// 参加・観戦時のロール切り替えをスムーズにするため、一度枠を開放してから送信
+// --- モード選択処理 ---
+function selectGameMode(mode) {
+    document.getElementById('mode-select-screen').style.display = 'none';
+    if (mode === 'pvp') {
+        isCpuMode = false;
+        document.getElementById('lobby-screen').style.display = 'block';
+    } else if (mode === 'cpu') {
+        isCpuMode = true;
+        startCpuGameInit();
+    }
+}
+
+function returnToModeSelect() {
+    if (!isCpuMode) {
+        socket.emit('leave-room');
+    }
+    currentRoom = null;
+    myRole = null;
+    resetSelections();
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'none';
+    document.getElementById('mode-select-screen').style.display = 'flex';
+}
+
+// --- CPU戦の初期化・セットアップ ---
+function startCpuGameInit() {
+    myRole = 'first';
+    placedSetupPieces = [];
+    cpuPlacedSetupPieces = [];
+    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+
+    cpuLocalState = {
+        phase: 'setup',
+        currentTurnRole: 'first',
+        winnerRole: null,
+        board: createInitialBoard(),
+        hands: { first: [], second: [] }
+    };
+
+    currentRoom = cpuLocalState;
+
+    document.getElementById('game-screen').style.display = 'block';
+    document.getElementById('btn-return-lobby').style.display = 'none';
+    document.getElementById('my-hand-container').style.display = 'none';
+    document.getElementById('enemy-hand-container').style.display = 'none';
+
+    // CPU戦用のセットアップコントロールを表示
+    const cpuControls = document.getElementById('cpu-setup-controls');
+    if (cpuControls) cpuControls.style.display = 'block';
+    document.getElementById('cpu-setup-status').innerText = '（未配置）';
+
+    startSetupPhase();
+}
+
+// CPUの駒をランダムに4体選んでCPU陣地（y=0, x !== 2）に配置する
+function randomizeCpuSetup() {
+    const allTypes = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+    // ランダムに4つ選択
+    const shuffled = [...allTypes].sort(() => Math.random() - 0.5);
+    const chosenTypes = shuffled.slice(0, 4);
+
+    // CPU陣地可能な空き座標 (y=0, x=0,1,3,4)
+    const availableX = [0, 1, 3, 4].sort(() => Math.random() - 0.5);
+
+    cpuPlacedSetupPieces = [];
+    for (let i = 0; i < 4; i++) {
+        cpuPlacedSetupPieces.push({
+            x: availableX[i],
+            y: 0,
+            type: chosenTypes[i]
+        });
+    }
+
+    document.getElementById('cpu-setup-status').innerText = '（配置完了 ✓）';
+    renderSetupBoard();
+    checkCpuReadyStatus();
+}
+
+function checkCpuReadyStatus() {
+    const confirmBtn = document.getElementById('btn-confirm-setup');
+    if (confirmBtn) {
+        confirmBtn.disabled = !(placedSetupPieces.length === 4 && cpuPlacedSetupPieces.length === 4);
+    }
+}
+
+// --- 参加・観戦時のロール切り替え ---
 function joinPlayer() { 
     socket.emit('leave-room');
     socket.emit('join-player'); 
@@ -52,24 +142,29 @@ function leaveRoom() {
         document.getElementById('lobby-screen').style.display = 'none';
         roomSelectEl.style.display = 'block';
     } else {
-        // 部屋選択画面が存在しない場合はロビー画面（待合室）を表示状態のままにする
         document.getElementById('lobby-screen').style.display = 'block';
     }
 }
 
 function startGame() { socket.emit('start-game'); }
-function returnToLobby() { socket.emit('return-to-lobby'); }
 
+function returnToLobby() { 
+    if (isCpuMode) {
+        returnToModeSelect();
+    } else {
+        socket.emit('return-to-lobby'); 
+    }
+}
+
+// --- Socket.io通信処理（対人戦用） ---
 socket.on('room-update', (state) => {
+    if (isCpuMode) return;
     currentRoom = state;
 
     if (state.player1?.id === myId) myRole = state.player1.role;
     else if (state.player2?.id === myId) myRole = state.player2.role;
     else if (state.spectators?.some(s => s.id === myId)) myRole = 'spectator';
     else myRole = null;
-
-    const roomSelectEl = document.getElementById('room-select-screen');
-    if (roomSelectEl) roomSelectEl.style.display = 'none';
 
     document.getElementById('p1-name').innerText = state.player1 ? state.player1.name : '（空き）';
     document.getElementById('p2-name').innerText = state.player2 ? state.player2.name : '（空き）';
@@ -90,13 +185,15 @@ socket.on('room-update', (state) => {
         btnStart.style.display = (isPlayer && state.player1 && state.player2 && state.phase === 'lobby') ? 'inline-block' : 'none';
     }
 
-    // フェーズに応じた画面切り替え制御
     if (state.phase === 'lobby') {
         document.getElementById('lobby-screen').style.display = 'block';
         document.getElementById('game-screen').style.display = 'none';
     } else {
         document.getElementById('lobby-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
+
+        const cpuControls = document.getElementById('cpu-setup-controls');
+        if (cpuControls) cpuControls.style.display = 'none';
 
         if (state.phase === 'setup') {
             startSetupPhase();
@@ -118,6 +215,7 @@ socket.on('room-update', (state) => {
 });
 
 socket.on('game-started', (state) => {
+    if (isCpuMode) return;
     currentRoom = state;
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'block';
@@ -146,7 +244,7 @@ function startSetupPhase() {
         if (paletteContainer) {
             paletteContainer.style.display = 'block';
             const guideElements = Array.from(paletteContainer.querySelectorAll('p, h3, h4, span, div'))
-                .filter(el => el.id !== 'palette-pieces' && el.innerText.includes('手持ちの駒を選び'));
+                .filter(el => el.id !== 'palette-pieces' && el.id !== 'cpu-setup-controls' && !el.id.includes('cpu') && el.innerText.includes('手持ちの駒を選び'));
 
             guideElements.forEach((el, index) => {
                 el.style.display = (index === 0) ? '' : 'none';
@@ -174,7 +272,13 @@ function renderPalette() {
     });
     
     const confirmBtn = document.getElementById('btn-confirm-setup');
-    if (confirmBtn) confirmBtn.disabled = (placedSetupPieces.length !== 4);
+    if (confirmBtn) {
+        if (isCpuMode) {
+            confirmBtn.disabled = !(placedSetupPieces.length === 4 && cpuPlacedSetupPieces.length === 4);
+        } else {
+            confirmBtn.disabled = (placedSetupPieces.length !== 4);
+        }
+    }
 }
 
 function isSetupZone(x, y, role) {
@@ -263,6 +367,12 @@ function renderSetupBoard() {
                 const placed = placedSetupPieces.find(p => p.x === bX && p.y === bY);
                 if (placed) {
                     tile.innerHTML = renderTilePieceContent({ type: placed.type, owner: myRole, hasUsedSkill: false, isSealed: false });
+                } else if (isCpuMode) {
+                    const cpuPlaced = cpuPlacedSetupPieces.find(p => p.x === bX && p.y === bY);
+                    if (cpuPlaced) {
+                        tile.innerHTML = renderTilePieceContent({ type: cpuPlaced.type, owner: 'second', hasUsedSkill: false, isSealed: false });
+                        tile.classList.add('enemy-piece');
+                    }
                 }
             }
             tile.onclick = () => onSetupTileClick(bX, bY);
@@ -277,25 +387,51 @@ function onSetupTileClick(x, y) {
     if (existingIndex !== -1) {
         const removed = placedSetupPieces.splice(existingIndex, 1)[0];
         setupPieces.push(removed.type);
-        renderPalette(); renderSetupBoard(); return;
+        selectedHandPiece = null;
+        renderPalette(); 
+        renderSetupBoard(); 
+        if (isCpuMode) checkCpuReadyStatus();
+        return;
     }
     if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
         const type = setupPieces.splice(selectedHandPiece, 1)[0];
         placedSetupPieces.push({ x, y, type });
         selectedHandPiece = null;
-        renderPalette(); renderSetupBoard();
+        renderPalette(); 
+        renderSetupBoard();
+        if (isCpuMode) checkCpuReadyStatus();
     }
 }
 
 function confirmSetup() {
     const palette = document.getElementById('setup-palette');
     if (palette) palette.style.display = 'none';
-    socket.emit('submit-setup', placedSetupPieces);
-    checkWaitStatus();
+
+    if (isCpuMode) {
+        // CPU戦の配置適用
+        cpuLocalState.board = createInitialBoard();
+        placedSetupPieces.forEach(p => {
+            cpuLocalState.board[p.y][p.x] = { type: p.type, owner: 'first', hasUsedSkill: false, isSealed: false };
+        });
+        cpuPlacedSetupPieces.forEach(p => {
+            cpuLocalState.board[p.y][p.x] = { type: p.type, owner: 'second', hasUsedSkill: false, isSealed: false };
+        });
+
+        cpuLocalState.phase = 'playing';
+        cpuLocalState.currentTurnRole = 'first';
+
+        document.getElementById('my-hand-container').style.display = 'block';
+        document.getElementById('enemy-hand-container').style.display = 'block';
+        updateGameStatus();
+        renderPlayingBoard();
+    } else {
+        socket.emit('submit-setup', placedSetupPieces);
+        checkWaitStatus();
+    }
 }
 
 function checkWaitStatus() {
-    if (myRole === 'spectator') return;
+    if (myRole === 'spectator' || isCpuMode) return;
     const amIP1 = myId === currentRoom.player1?.id;
     const amIP2 = myId === currentRoom.player2?.id;
     if ((amIP1 && currentRoom.p1Ready && !currentRoom.p2Ready) || (amIP2 && currentRoom.p2Ready && !currentRoom.p1Ready)) {
@@ -304,6 +440,7 @@ function checkWaitStatus() {
 }
 
 socket.on('phase-changed', (state) => {
+    if (isCpuMode) return;
     currentRoom = state;
     resetSelections();
     document.getElementById('my-hand-container').style.display = 'block';
@@ -313,6 +450,7 @@ socket.on('phase-changed', (state) => {
 });
 
 socket.on('board-updated', (state) => {
+    if (isCpuMode) return;
     currentRoom = state;
     resetSelections();
     updateGameStatus();
@@ -320,6 +458,7 @@ socket.on('board-updated', (state) => {
 });
 
 socket.on('prompt-nobunaga', (data) => { 
+    if (isCpuMode) return;
     const pieceInfo = PIECE_DATA[data.pieceType];
     const detailEl = document.getElementById('nobunaga-skill-detail');
 
@@ -336,25 +475,33 @@ socket.on('prompt-nobunaga', (data) => {
 
 function respondNobunaga(cancel) {
     document.getElementById('nobunaga-modal').style.display = 'none';
-    socket.emit('respond-nobunaga', { cancel });
+    if (!isCpuMode) {
+        socket.emit('respond-nobunaga', { cancel });
+    }
 }
 
-socket.on('skill-cancelled', (data) => { alert(data.message); });
+socket.on('skill-cancelled', (data) => { if (!isCpuMode) alert(data.message); });
 
 socket.on('game-over', (state) => {
-    currentRoom = state;
+    if (isCpuMode) return;
+    handleGameOver(state.winnerRole);
+});
+
+function handleGameOver(winnerRole) {
+    currentRoom.phase = 'ended';
     resetSelections();
-    const isWinner = (state.winnerRole === myRole);
+    const isWinner = (winnerRole === myRole);
     if (myRole === 'spectator') {
-        document.getElementById('game-status').innerText = `【ゲーム終了】 ${state.winnerRole === 'first' ? '先攻' : '後攻'} の勝利です！`;
+        document.getElementById('game-status').innerText = `【ゲーム終了】 ${winnerRole === 'first' ? '先攻' : '後攻'} の勝利です！`;
     } else {
         document.getElementById('game-status').innerText = isWinner ? '勝利！！' : '敗北...';
     }
     document.getElementById('btn-return-lobby').style.display = 'inline-block';
     renderPlayingBoard();
-});
+}
 
 socket.on('returned-to-lobby', () => {
+    if (isCpuMode) return;
     document.getElementById('game-screen').style.display = 'none';
     document.getElementById('lobby-screen').style.display = 'block';
 });
@@ -383,7 +530,7 @@ function updateGameStatus() {
         if (isMyTurn) {
             document.getElementById('game-status').innerText = `【あなたのターン】 駒を動かすかスキルを使用してください`;
         } else {
-            document.getElementById('game-status').innerText = `【相手のターン】 相手の操作を待っています...`;
+            document.getElementById('game-status').innerText = isCpuMode ? `【CPUのターン】 思考中...` : `【相手のターン】 相手の操作を待っています...`;
         }
     }
 }
@@ -563,7 +710,12 @@ function onPlayingTileClick(x, y) {
 
     if (selectedCapturedIndex !== null) {
         if (targetPiece === null) {
-            socket.emit('drop-piece', { type: currentRoom.hands[myRole][selectedCapturedIndex], toX: x, toY: y });
+            const dropType = currentRoom.hands[myRole][selectedCapturedIndex];
+            if (isCpuMode) {
+                executeLocalDrop(dropType, x, y, myRole);
+            } else {
+                socket.emit('drop-piece', { type: dropType, toX: x, toY: y });
+            }
             selectedCapturedIndex = null;
         }
         return;
@@ -573,7 +725,11 @@ function onPlayingTileClick(x, y) {
         const p = currentRoom.board[selectedBoardPiece.y][selectedBoardPiece.x];
         const validMoves = getValidMoves(selectedBoardPiece.x, selectedBoardPiece.y, p);
         if (validMoves.some(m => m.x === x && m.y === y)) {
-            socket.emit('move-piece', { fromX: selectedBoardPiece.x, fromY: selectedBoardPiece.y, toX: x, toY: y });
+            if (isCpuMode) {
+                executeLocalMove(selectedBoardPiece.x, selectedBoardPiece.y, x, y, myRole);
+            } else {
+                socket.emit('move-piece', { fromX: selectedBoardPiece.x, fromY: selectedBoardPiece.y, toX: x, toY: y });
+            }
             return;
         }
     }
@@ -592,6 +748,173 @@ function onPlayingTileClick(x, y) {
 
         renderPlayingBoard();
     }
+}
+
+// --- ローカルゲーム処理（CPU戦用） ---
+function executeLocalMove(fromX, fromY, toX, toY, role) {
+    const piece = currentRoom.board[fromY][fromX];
+    if (!piece || piece.owner !== role) return;
+
+    const target = currentRoom.board[toY][toX];
+    if (target) {
+        if (target.owner === role || target.type === 'UNCHI') return;
+        if (target.type !== 'K') {
+            currentRoom.hands[role].push(target.type);
+        }
+    }
+
+    currentRoom.board[toY][toX] = piece;
+    currentRoom.board[fromY][fromX] = null;
+
+    if (target && target.type === 'K') {
+        currentRoom.phase = 'ended';
+        currentRoom.winnerRole = role;
+        handleGameOver(role);
+        return;
+    }
+
+    currentRoom.currentTurnRole = (role === 'first') ? 'second' : 'first';
+    resetSelections();
+    updateGameStatus();
+    renderPlayingBoard();
+
+    if (isCpuMode && currentRoom.phase === 'playing' && currentRoom.currentTurnRole === 'second') {
+        setTimeout(runCpuTurn, 600);
+    }
+}
+
+function executeLocalDrop(type, toX, toY, role) {
+    const hand = currentRoom.hands[role];
+    const idx = hand.indexOf(type);
+    if (idx === -1 || currentRoom.board[toY][toX] !== null) return;
+
+    hand.splice(idx, 1);
+    currentRoom.board[toY][toX] = { type, owner: role, hasUsedSkill: false, isSealed: false };
+
+    currentRoom.currentTurnRole = (role === 'first') ? 'second' : 'first';
+    resetSelections();
+    updateGameStatus();
+    renderPlayingBoard();
+
+    if (isCpuMode && currentRoom.phase === 'playing' && currentRoom.currentTurnRole === 'second') {
+        setTimeout(runCpuTurn, 600);
+    }
+}
+
+function executeLocalSkill(type, x, y, targets, role) {
+    const piece = currentRoom.board[y][x];
+    if (!piece || piece.owner !== role || piece.hasUsedSkill || piece.isSealed) return;
+
+    const enemyRole = (role === 'first') ? 'second' : 'first';
+    piece.hasUsedSkill = true;
+
+    if (type === 'A') {
+        targets.forEach(t => {
+            const targetPiece = currentRoom.board[t.y][t.x];
+            if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'K' && targetPiece.type !== 'UNCHI') {
+                currentRoom.hands[enemyRole].push(targetPiece.type);
+                currentRoom.board[t.y][t.x] = null;
+            }
+        });
+    } else if (type === 'Y') {
+        if (targets.length === 2) {
+            const p1 = currentRoom.board[targets[0].y][targets[0].x];
+            const p2 = currentRoom.board[targets[1].y][targets[1].x];
+            if (p1 && p2 && p1.owner === role && p2.owner === role) {
+                currentRoom.board[targets[0].y][targets[0].x] = p2;
+                currentRoom.board[targets[1].y][targets[1].x] = p1;
+            }
+        }
+    } else if (type === 'KE') {
+        if (targets.length === 1) {
+            const targetPiece = currentRoom.board[targets[0].y][targets[0].x];
+            if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'UNCHI') {
+                targetPiece.isSealed = true;
+            }
+        }
+    } else if (type === 'YOR') {
+        targets.forEach(t => {
+            if (currentRoom.board[t.y][t.x] === null) {
+                currentRoom.board[t.y][t.x] = { type: 'UNCHI', owner: 'neutral', hasUsedSkill: false, isSealed: false };
+            }
+        });
+    } else if (type === 'SAI') {
+        if (targets.length === 1) {
+            const to = targets[0];
+            if (currentRoom.board[to.y][to.x] === null) {
+                currentRoom.board[to.y][to.x] = piece;
+                currentRoom.board[y][x] = null;
+            }
+        }
+    } else if (type === 'RYO') {
+        if (targets.length === 2) {
+            const targetPiece = currentRoom.board[targets[0].y][targets[0].x];
+            const to = targets[1];
+            if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'K' && targetPiece.type !== 'UNCHI' && currentRoom.board[to.y][to.x] === null) {
+                currentRoom.board[to.y][to.x] = targetPiece;
+                currentRoom.board[targets[0].y][targets[0].x] = null;
+            }
+        }
+    }
+
+    currentRoom.currentTurnRole = enemyRole;
+    resetSelections();
+    updateGameStatus();
+    renderPlayingBoard();
+
+    if (isCpuMode && currentRoom.phase === 'playing' && currentRoom.currentTurnRole === 'second') {
+        setTimeout(runCpuTurn, 600);
+    }
+}
+
+// --- CPU思考簡易ロジック（クライアント側完結） ---
+function runCpuTurn() {
+    if (currentRoom.phase !== 'playing' || currentRoom.currentTurnRole !== 'second') return;
+
+    // 1. 持ち駒があれば、ランダムな空きマスに打つか検討 (確率30%)
+    const cpuHand = currentRoom.hands['second'];
+    if (cpuHand.length > 0 && Math.random() < 0.4) {
+        const emptyTiles = [];
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                if (currentRoom.board[r][c] === null) emptyTiles.push({ x: c, y: r });
+            }
+        }
+        if (emptyTiles.length > 0) {
+            const dropTarget = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
+            const pieceType = cpuHand[0];
+            executeLocalDrop(pieceType, dropTarget.x, dropTarget.y, 'second');
+            return;
+        }
+    }
+
+    // 2. 盤面のCPUの駒から動かせるものを探す
+    const cpuPieces = [];
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+            const p = currentRoom.board[r][c];
+            if (p && p.owner === 'second') {
+                const moves = getValidMoves(c, r, p);
+                if (moves.length > 0) {
+                    cpuPieces.push({ x: c, y: r, piece: p, moves });
+                }
+            }
+        }
+    }
+
+    if (cpuPieces.length === 0) {
+        // 動かせる駒がない場合はパスまたはターン交代
+        currentRoom.currentTurnRole = 'first';
+        updateGameStatus();
+        renderPlayingBoard();
+        return;
+    }
+
+    // ランダムに駒と移動先を選ぶ
+    const chosen = cpuPieces[Math.floor(Math.random() * cpuPieces.length)];
+    const chosenMove = chosen.moves[Math.floor(Math.random() * chosen.moves.length)];
+
+    executeLocalMove(chosen.x, chosen.y, chosenMove.x, chosenMove.y, 'second');
 }
 
 function showPieceInfo(type, hasUsedSkill, isSealed) {
@@ -672,7 +995,11 @@ function triggerSelectedSkill() {
         const myCount = countPiecesOnBoard(piece.owner);
         const enemyCount = countPiecesOnBoard(piece.owner === 'first' ? 'second' : 'first');
         if (enemyCount > myCount) {
-            socket.emit('use-skill', { type: 'S', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [] });
+            if (isCpuMode) {
+                executeLocalSkill('S', selectedBoardPiece.x, selectedBoardPiece.y, [], myRole);
+            } else {
+                socket.emit('use-skill', { type: 'S', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [] });
+            }
             resetSelections();
             renderPlayingBoard();
         } else {
@@ -707,7 +1034,11 @@ function handleSkillTargetClick(x, y) {
                 if (skillTargetPieces.length === 1) {
                     document.getElementById('game-status').innerText = '【本能寺の変】2体目の相手の駒を選択してください';
                 } else if (skillTargetPieces.length === 2) {
-                    socket.emit('use-skill', { type: 'A', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    if (isCpuMode) {
+                        executeLocalSkill('A', selectedBoardPiece.x, selectedBoardPiece.y, skillTargetPieces, myRole);
+                    } else {
+                        socket.emit('use-skill', { type: 'A', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    }
                     resetSelections();
                 }
             }
@@ -719,14 +1050,22 @@ function handleSkillTargetClick(x, y) {
                 if (skillTargetPieces.length === 1) {
                     document.getElementById('game-status').innerText = '【牛若丸】2体目の味方の駒を選択してください';
                 } else if (skillTargetPieces.length === 2) {
-                    socket.emit('use-skill', { type: 'Y', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    if (isCpuMode) {
+                        executeLocalSkill('Y', selectedBoardPiece.x, selectedBoardPiece.y, skillTargetPieces, myRole);
+                    } else {
+                        socket.emit('use-skill', { type: 'Y', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    }
                     resetSelections();
                 }
             }
         }
     } else if (piece.type === 'KE') {
         if (target && target.owner !== myRole && target.type !== 'K' && target.type !== 'UNCHI') {
-            socket.emit('use-skill', { type: 'KE', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+            if (isCpuMode) {
+                executeLocalSkill('KE', selectedBoardPiece.x, selectedBoardPiece.y, [{ x, y }], myRole);
+            } else {
+                socket.emit('use-skill', { type: 'KE', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+            }
             resetSelections();
         }
     } else if (piece.type === 'YOR') {
@@ -738,14 +1077,22 @@ function handleSkillTargetClick(x, y) {
                 if (skillTargetPieces.length < maxTargets) {
                     document.getElementById('game-status').innerText = `【1192つくろう】2つ目の空きマスを選択してください`;
                 } else {
-                    socket.emit('use-skill', { type: 'YOR', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    if (isCpuMode) {
+                        executeLocalSkill('YOR', selectedBoardPiece.x, selectedBoardPiece.y, skillTargetPieces, myRole);
+                    } else {
+                        socket.emit('use-skill', { type: 'YOR', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                    }
                     resetSelections();
                 }
             }
         }
     } else if (piece.type === 'SAI') {
         if (target === null) {
-            socket.emit('use-skill', { type: 'SAI', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+            if (isCpuMode) {
+                executeLocalSkill('SAI', selectedBoardPiece.x, selectedBoardPiece.y, [{ x, y }], myRole);
+            } else {
+                socket.emit('use-skill', { type: 'SAI', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+            }
             resetSelections();
         }
     } else if (piece.type === 'RYO') {
@@ -757,7 +1104,11 @@ function handleSkillTargetClick(x, y) {
         } else if (skillTargetPieces.length === 1) {
             if (target === null) {
                 skillTargetPieces.push({ x, y });
-                socket.emit('use-skill', { type: 'RYO', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                if (isCpuMode) {
+                    executeLocalSkill('RYO', selectedBoardPiece.x, selectedBoardPiece.y, skillTargetPieces, myRole);
+                } else {
+                    socket.emit('use-skill', { type: 'RYO', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+                }
                 resetSelections();
             }
         }
@@ -769,4 +1120,11 @@ function cancelSkillSelection() {
     resetSelections();
     updateGameStatus();
     renderPlayingBoard();
+}
+
+function createInitialBoard() {
+    const board = Array(5).fill(null).map(() => Array(5).fill(null));
+    board[4][2] = { type: 'K', owner: 'first', hasUsedSkill: false, isSealed: false };
+    board[0][2] = { type: 'K', owner: 'second', hasUsedSkill: false, isSealed: false };
+    return board;
 }
