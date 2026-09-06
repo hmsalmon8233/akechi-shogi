@@ -45,6 +45,9 @@
 
         <!-- 対局画面 -->
         <div id="game-screen" style="display: none;">
+            <!-- ★追加：どのモードでもモード選択に戻れるようにボタンを配置 -->
+            <button onclick="returnToModeSelect()" class="back-btn">モード選択に戻る</button>
+            
             <h2 id="game-status">ゲーム準備中...</h2>
             <button id="btn-return-lobby" onclick="returnToLobby()" class="return-btn" style="display: none;">ゲーム終了（ルームに戻る）</button>
 

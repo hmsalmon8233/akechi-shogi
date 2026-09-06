@@ -39,9 +39,12 @@ function selectGameMode(mode) {
     document.getElementById('mode-select-screen').style.display = 'none';
     if (mode === 'pvp') {
         isCpuMode = false;
+        // ★追加：待合室を表示し、CPU戦の要素を隠す
         document.getElementById('lobby-screen').style.display = 'block';
     } else if (mode === 'cpu') {
         isCpuMode = true;
+        // ★追加：CPU戦の場合は待合室を確実に非表示にする
+        document.getElementById('lobby-screen').style.display = 'none';
         startCpuGameInit();
     }
 }
@@ -75,6 +78,8 @@ function startCpuGameInit() {
 
     currentRoom = cpuLocalState;
 
+    // 念のためここでも待合室を非表示に
+    document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'block';
     document.getElementById('btn-return-lobby').style.display = 'none';
     document.getElementById('my-hand-container').style.display = 'none';
@@ -871,7 +876,7 @@ function executeLocalSkill(type, x, y, targets, role) {
 function runCpuTurn() {
     if (currentRoom.phase !== 'playing' || currentRoom.currentTurnRole !== 'second') return;
 
-    // 1. 持ち駒があれば、ランダムな空きマスに打つか検討 (確率30%)
+    // 1. 持ち駒があれば、ランダムな空きマスに打つか検討 (確率40%)
     const cpuHand = currentRoom.hands['second'];
     if (cpuHand.length > 0 && Math.random() < 0.4) {
         const emptyTiles = [];
