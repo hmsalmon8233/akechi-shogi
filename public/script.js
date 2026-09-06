@@ -15,7 +15,7 @@ let skillTargetPieces = [];
 // --- CPU戦用のローカル状態 ---
 let isCpuMode = false;
 let cpuLocalState = null;
-let cpuPlacedSetupPieces = []; // CPU側の配置用
+let cpuPlacedSetupPieces = []; 
 
 const PIECE_DATA = {
     'K': { name: '王', skillName: 'なし', skillDesc: 'スキルを持ちません。', moves: [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -39,11 +39,9 @@ function selectGameMode(mode) {
     document.getElementById('mode-select-screen').style.display = 'none';
     if (mode === 'pvp') {
         isCpuMode = false;
-        // ★追加：待合室を表示し、CPU戦の要素を隠す
         document.getElementById('lobby-screen').style.display = 'block';
     } else if (mode === 'cpu') {
         isCpuMode = true;
-        // ★追加：CPU戦の場合は待合室を確実に非表示にする
         document.getElementById('lobby-screen').style.display = 'none';
         startCpuGameInit();
     }
@@ -78,32 +76,32 @@ function startCpuGameInit() {
 
     currentRoom = cpuLocalState;
 
-    // 念のためここでも待合室を非表示に
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'block';
     document.getElementById('btn-return-lobby').style.display = 'none';
     document.getElementById('my-hand-container').style.display = 'none';
     document.getElementById('enemy-hand-container').style.display = 'none';
 
-    // CPU戦用のセットアップコントロールを表示
     const cpuControls = document.getElementById('cpu-setup-controls');
     if (cpuControls) cpuControls.style.display = 'block';
-    document.getElementById('cpu-setup-status').innerText = '（未配置）';
+    document.getElementById('cpu-setup-status').innerText = '（手動・ランダム配置可能）';
 
     startSetupPhase();
 }
 
-// CPUの駒をランダムに4体選んでCPU陣地（y=0, x !== 2）に配置する
 function randomizeCpuSetup() {
     const allTypes = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
-    // ランダムに4つ選択
-    const shuffled = [...allTypes].sort(() => Math.random() - 0.5);
-    const chosenTypes = shuffled.slice(0, 4);
-
-    // CPU陣地可能な空き座標 (y=0, x=0,1,3,4)
-    const availableX = [0, 1, 3, 4].sort(() => Math.random() - 0.5);
-
+    
+    // 現在パレットに残っている駒＋既にCPU側に置かれている駒を回収して再シャッフルに含める
+    cpuPlacedSetupPieces.forEach(p => setupPieces.push(p.type));
     cpuPlacedSetupPieces = [];
+
+    const shuffled = [...setupPieces].sort(() => Math.random() - 0.5);
+    const chosenTypes = shuffled.slice(0, 4);
+    // 残りをパレットに戻す用に控える
+    const remainingTypes = shuffled.slice(4);
+
+    const availableX = [0, 1, 3, 4].sort(() => Math.random() - 0.5);
     for (let i = 0; i < 4; i++) {
         cpuPlacedSetupPieces.push({
             x: availableX[i],
@@ -112,7 +110,11 @@ function randomizeCpuSetup() {
         });
     }
 
-    document.getElementById('cpu-setup-status').innerText = '（配置完了 ✓）';
+    setupPieces = remainingTypes;
+    selectedHandPiece = null;
+
+    document.getElementById('cpu-setup-status').innerText = '（ランダム配置完了 ✓）';
+    renderPalette();
     renderSetupBoard();
     checkCpuReadyStatus();
 }
@@ -244,7 +246,7 @@ function startSetupPhase() {
         const palette = document.getElementById('setup-palette');
         if (palette) palette.style.display = 'none';
     } else {
-        document.getElementById('game-status').innerText = `【初期配置】 (${myRole === 'first' ? '先攻' : '後攻'})`;
+        document.getElementById('game-status').innerText = isCpuMode ? '【初期配置】 自陣とCPU陣に駒を配置してください' : `【初期配置】 (${myRole === 'first' ? '先攻' : '後攻'})`;
         const paletteContainer = document.getElementById('setup-palette');
         if (paletteContainer) {
             paletteContainer.style.display = 'block';
@@ -287,6 +289,9 @@ function renderPalette() {
 }
 
 function isSetupZone(x, y, role) {
+    if (isCpuMode) {
+        return (y === 4 || y === 0) && x !== 2;
+    }
     if (role === 'first') return (y === 4 && x !== 2);
     if (role === 'second') return (y === 0 && x !== 2);
     return false;
@@ -387,7 +392,55 @@ function renderSetupBoard() {
 }
 
 function onSetupTileClick(x, y) {
-    if (myRole === 'spectator' || !isSetupZone(x, y, myRole)) return;
+    if (myRole === 'spectator') return;
+
+    if (isCpuMode) {
+        if (y === 4 && x !== 2) {
+            // プレイヤー陣地 (y=4)
+            const existingIndex = placedSetupPieces.findIndex(p => p.x === x && p.y === y);
+            if (existingIndex !== -1) {
+                const removed = placedSetupPieces.splice(existingIndex, 1)[0];
+                setupPieces.push(removed.type);
+                selectedHandPiece = null;
+                renderPalette(); 
+                renderSetupBoard(); 
+                checkCpuReadyStatus();
+                return;
+            }
+            if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
+                const type = setupPieces.splice(selectedHandPiece, 1)[0];
+                placedSetupPieces.push({ x, y, type });
+                selectedHandPiece = null;
+                renderPalette(); 
+                renderSetupBoard();
+                checkCpuReadyStatus();
+            }
+        } else if (y === 0 && x !== 2) {
+            // CPU陣地 (y=0)
+            const existingIndex = cpuPlacedSetupPieces.findIndex(p => p.x === x && p.y === y);
+            if (existingIndex !== -1) {
+                const removed = cpuPlacedSetupPieces.splice(existingIndex, 1)[0];
+                setupPieces.push(removed.type);
+                selectedHandPiece = null;
+                renderPalette(); 
+                renderSetupBoard(); 
+                checkCpuReadyStatus();
+                return;
+            }
+            if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
+                const type = setupPieces.splice(selectedHandPiece, 1)[0];
+                cpuPlacedSetupPieces.push({ x, y, type });
+                selectedHandPiece = null;
+                renderPalette(); 
+                renderSetupBoard();
+                checkCpuReadyStatus();
+            }
+        }
+        return;
+    }
+
+    // 対人戦のセットアップロジック
+    if (!isSetupZone(x, y, myRole)) return;
     const existingIndex = placedSetupPieces.findIndex(p => p.x === x && p.y === y);
     if (existingIndex !== -1) {
         const removed = placedSetupPieces.splice(existingIndex, 1)[0];
@@ -395,7 +448,6 @@ function onSetupTileClick(x, y) {
         selectedHandPiece = null;
         renderPalette(); 
         renderSetupBoard(); 
-        if (isCpuMode) checkCpuReadyStatus();
         return;
     }
     if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
@@ -404,7 +456,6 @@ function onSetupTileClick(x, y) {
         selectedHandPiece = null;
         renderPalette(); 
         renderSetupBoard();
-        if (isCpuMode) checkCpuReadyStatus();
     }
 }
 
@@ -413,7 +464,6 @@ function confirmSetup() {
     if (palette) palette.style.display = 'none';
 
     if (isCpuMode) {
-        // CPU戦の配置適用
         cpuLocalState.board = createInitialBoard();
         placedSetupPieces.forEach(p => {
             cpuLocalState.board[p.y][p.x] = { type: p.type, owner: 'first', hasUsedSkill: false, isSealed: false };
@@ -876,7 +926,6 @@ function executeLocalSkill(type, x, y, targets, role) {
 function runCpuTurn() {
     if (currentRoom.phase !== 'playing' || currentRoom.currentTurnRole !== 'second') return;
 
-    // 1. 持ち駒があれば、ランダムな空きマスに打つか検討 (確率40%)
     const cpuHand = currentRoom.hands['second'];
     if (cpuHand.length > 0 && Math.random() < 0.4) {
         const emptyTiles = [];
@@ -893,7 +942,6 @@ function runCpuTurn() {
         }
     }
 
-    // 2. 盤面のCPUの駒から動かせるものを探す
     const cpuPieces = [];
     for (let r = 0; r < 5; r++) {
         for (let c = 0; c < 5; c++) {
@@ -908,14 +956,12 @@ function runCpuTurn() {
     }
 
     if (cpuPieces.length === 0) {
-        // 動かせる駒がない場合はパスまたはターン交代
         currentRoom.currentTurnRole = 'first';
         updateGameStatus();
         renderPlayingBoard();
         return;
     }
 
-    // ランダムに駒と移動先を選ぶ
     const chosen = cpuPieces[Math.floor(Math.random() * cpuPieces.length)];
     const chosenMove = chosen.moves[Math.floor(Math.random() * chosen.moves.length)];
 

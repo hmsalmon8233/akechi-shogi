@@ -45,7 +45,6 @@
 
         <!-- 対局画面 -->
         <div id="game-screen" style="display: none;">
-            <!-- ★追加：どのモードでもモード選択に戻れるようにボタンを配置 -->
             <button onclick="returnToModeSelect()" class="back-btn">モード選択に戻る</button>
             
             <h2 id="game-status">ゲーム準備中...</h2>
@@ -53,14 +52,14 @@
 
             <!-- 初期配置用パレット -->
             <div id="setup-palette" style="display: none;" class="palette">
-                <p style="font-weight: bold; margin-bottom: 6px;">手持ちの駒を選んで自陣に配置してください</p>
+                <p style="font-weight: bold; margin-bottom: 6px;">手持ちの駒を選んで自陣・CPU陣に配置してください</p>
                 <div id="palette-pieces"></div>
                 
-                <!-- CPU戦用：CPU側ランダム配置ボタン -->
+                <!-- CPU戦用：CPU側配置コントロール -->
                 <div id="cpu-setup-controls" style="display: none; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 10px;">
                     <p style="font-weight: bold; margin-bottom: 6px;">CPUの駒配置</p>
                     <button onclick="randomizeCpuSetup()" class="cpu-random-btn">CPUの駒をランダム配置</button>
-                    <span id="cpu-setup-status" style="display: inline-block; margin-left: 8px; font-size: 13px; color: #666;">（未配置）</span>
+                    <span id="cpu-setup-status" style="display: inline-block; margin-left: 8px; font-size: 13px; color: #666;">（手動配置も可能）</span>
                 </div>
 
                 <br>
