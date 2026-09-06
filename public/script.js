@@ -5,7 +5,7 @@ let currentRoom = null;
 let myRole = null; 
 let selectedHandPiece = null;
 
-let setupPieces = ['A', 'N', 'S', 'Y', 'KE']; 
+let setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR']; 
 let placedSetupPieces = []; 
 
 let selectedBoardPiece = null; 
@@ -48,6 +48,18 @@ const PIECE_DATA = {
         skillName: '毘沙門天',
         skillDesc: '相手一体をスキル封印状態にする。（スキル使用不可・移動は可能）',
         moves: [2, 1, 3, 3, 0, 2, 0, 2]
+    },
+    'YOR': {
+        name: 'ヨリトモ',
+        skillName: '1192つくろう',
+        skillDesc: '盤面の空きマスに「うんち（障害物）」を1つ置く。場にヨシツネがいれば2つ置く。',
+        moves: [0, 1, 0, 1, 1, 3, 3, 3]
+    },
+    'UNCHI': {
+        name: 'うんち',
+        skillName: 'なし',
+        skillDesc: '障害物。キャラクターはここを通ることができず、入ることもできません。',
+        moves: [0, 0, 0, 0, 0, 0, 0, 0]
     }
 };
 
@@ -93,7 +105,7 @@ socket.on('game-started', (state) => {
     else myRole = 'spectator';
 
     placedSetupPieces = [];
-    setupPieces = ['A', 'N', 'S', 'Y', 'KE']; 
+    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR']; 
 
     startSetupPhase();
 });
@@ -122,7 +134,6 @@ function renderPalette() {
         paletteEl.appendChild(btn);
     });
     
-    // 【修正箇所】4体配置完了（placedSetupPieces.length === 4）でボタンを有効化
     document.getElementById('btn-confirm-setup').disabled = (placedSetupPieces.length !== 4);
 }
 
@@ -143,6 +154,10 @@ function getPieceMoves(type, hasUsedSkill) {
 }
 
 function renderTilePieceContent(piece) {
+    if (piece.type === 'UNCHI') {
+        return '<div class="tile-grid"><div class="tile-cell tile-center-name" style="grid-column: 1/4; grid-row: 1/4; font-size: 22px;">💩</div></div>';
+    }
+
     const data = PIECE_DATA[piece.type];
     if (!data) return '';
 
@@ -202,7 +217,7 @@ function renderSetupBoard() {
             if (serverPiece) {
                 tile.innerHTML = renderTilePieceContent(serverPiece);
                 const isEnemy = (myRole === 'second') ? (serverPiece.owner === 'first') : (serverPiece.owner === 'second');
-                if (isEnemy) tile.classList.add('enemy-piece');
+                if (isEnemy && serverPiece.type !== 'UNCHI') tile.classList.add('enemy-piece');
             } else {
                 const placed = placedSetupPieces.find(p => p.x === bX && p.y === bY);
                 if (placed) {
@@ -319,6 +334,15 @@ function updateGameStatus() {
     else document.getElementById('game-status').innerText = `【相手のターン】 相手の操作を待っています...`;
 }
 
+function checkPieceOnBoard(pieceType) {
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+            if (currentRoom.board[r][c]?.type === pieceType) return true;
+        }
+    }
+    return false;
+}
+
 function getValidMoves(x, y, piece) {
     const validMoves = [];
     const dir = (piece.owner === 'first') ? -1 : 1;
@@ -334,6 +358,9 @@ function getValidMoves(x, y, piece) {
             const target = currentRoom.board[ny][nx];
             if (!target) {
                 validMoves.push({ x: nx, y: ny });
+            } else if (target.type === 'UNCHI') {
+                // うんち（障害物）がある場合は通過もマス進入も不可
+                break;
             } else {
                 if (target.owner !== piece.owner) validMoves.push({ x: nx, y: ny });
                 break;
@@ -354,12 +381,19 @@ function getValidMoves(x, y, piece) {
     } else if (type === 'Y') {
         checkMove(0, dir, 2); checkMove(-1, dir, 2); checkMove(1, dir, 2); checkMove(-1, 0, 2); checkMove(1, 0, 2); checkMove(0, -dir, 2);
     } else if (type === 'KE') {
-        checkMove(-1, dir, 2);  // 前左 2
-        checkMove(0, dir, 1);   // 前 1
-        checkMove(1, dir, 3);   // 前右 3
-        checkMove(-1, 0, 3);    // 左 3
-        checkMove(-1, -dir, 2); // 左下 2
-        checkMove(1, -dir, 2);  // 右下 2
+        checkMove(-1, dir, 2);  
+        checkMove(0, dir, 1);   
+        checkMove(1, dir, 3);   
+        checkMove(-1, 0, 3);    
+        checkMove(-1, -dir, 2); 
+        checkMove(1, -dir, 2);  
+    } else if (type === 'YOR') {
+        checkMove(0, dir, 1);    // 前 1
+        checkMove(-1, 0, 1);   // 左 1
+        checkMove(1, 0, 1);    // 右 1
+        checkMove(-1, -dir, 3);// 左後 3
+        checkMove(0, -dir, 3); // 後 3
+        checkMove(1, -dir, 3); // 右後 3
     }
 
     return validMoves;
@@ -394,7 +428,7 @@ function renderPlayingBoard() {
             if (piece) {
                 tile.innerHTML = renderTilePieceContent(piece);
                 const isEnemy = (myRole === 'second') ? (piece.owner === 'first') : (piece.owner === 'second');
-                if (isEnemy) tile.classList.add('enemy-piece');
+                if (isEnemy && piece.type !== 'UNCHI') tile.classList.add('enemy-piece');
             }
 
             if (selectedBoardPiece && selectedBoardPiece.x === bX && selectedBoardPiece.y === bY) {
@@ -510,7 +544,7 @@ function showPieceInfo(type, hasUsedSkill, isSealed) {
     infoEl.className = '';
 
     let tagHtml = '';
-    if (type === 'K') {
+    if (type === 'K' || type === 'UNCHI') {
         tagHtml = '<span class="info-status-tag tag-none">スキルなし</span>';
     } else if (isSealed) {
         tagHtml = '<span class="info-status-tag tag-used" style="background-color: #7b1fa2;">スキル封印中</span>';
@@ -583,6 +617,11 @@ function triggerSelectedSkill() {
         } else {
             alert('【風林火山】相手のキャラ数が自分より多くないため、スキルを発動できません。');
         }
+    } else if (piece.type === 'YOR') {
+        const hasYoshitsune = checkPieceOnBoard('Y');
+        const targetCount = hasYoshitsune ? 2 : 1;
+        alert(`【1192つくろう】空いているマスを ${targetCount} 箇所選択してください。${hasYoshitsune ? '（場にヨシツネがいるため2つ置けます）' : ''}`);
+        skillTargetPieces = [{ dummy: true }];
     }
 }
 
@@ -593,7 +632,7 @@ function handleSkillTargetClick(x, y) {
     if (skillTargetPieces[0]?.dummy) skillTargetPieces = [];
 
     if (piece.type === 'A') {
-        if (target && target.owner !== myRole && target.type !== 'K') {
+        if (target && target.owner !== myRole && target.type !== 'K' && target.type !== 'UNCHI') {
             if (!skillTargetPieces.some(t => t.x === x && t.y === y)) skillTargetPieces.push({ x, y });
             if (skillTargetPieces.length === 2) {
                 socket.emit('use-skill', { type: 'A', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
@@ -607,8 +646,17 @@ function handleSkillTargetClick(x, y) {
             }
         }
     } else if (piece.type === 'KE') {
-        if (target && target.owner !== myRole && target.type !== 'K') {
+        if (target && target.owner !== myRole && target.type !== 'K' && target.type !== 'UNCHI') {
             socket.emit('use-skill', { type: 'KE', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
+        }
+    } else if (piece.type === 'YOR') {
+        const hasYoshitsune = checkPieceOnBoard('Y');
+        const maxTargets = hasYoshitsune ? 2 : 1;
+        if (target === null) {
+            if (!skillTargetPieces.some(t => t.x === x && t.y === y)) skillTargetPieces.push({ x, y });
+            if (skillTargetPieces.length === maxTargets) {
+                socket.emit('use-skill', { type: 'YOR', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: skillTargetPieces });
+            }
         }
     }
     renderPlayingBoard();

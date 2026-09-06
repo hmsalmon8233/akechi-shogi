@@ -38,7 +38,7 @@ function createInitialBoard() {
 
 function removeFromRoom(socketId) {
     let changed = false;
-    let playerChanged = false; // ★ プレイヤーが離脱したかどうかのフラグ
+    let playerChanged = false;
 
     if (room.player1 && room.player1.id === socketId) {
         room.player1 = null;
@@ -57,7 +57,6 @@ function removeFromRoom(socketId) {
         changed = true;
     }
 
-    // ★ 観戦者ではなく「プレイヤー」が抜けた場合のみゲームを中断してロビーに戻す
     if (playerChanged && room.phase !== 'lobby') {
         room.gameStarted = false;
         room.phase = 'lobby';
@@ -91,7 +90,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-spectator', () => {
-        // ★ プレイヤー登録されている場合は弾き、観戦者リストに追加
         if (room.player1?.id === socket.id || room.player2?.id === socket.id) return;
 
         if (!room.spectators.some(s => s.id === socket.id)) {
@@ -100,7 +98,6 @@ io.on('connection', (socket) => {
 
         io.emit('room-update', room);
 
-        // ★ ゲーム中なら新しく入った観戦者に画面を同期
         if (room.gameStarted) {
             socket.emit('game-started', room);
             if (room.phase === 'playing') {
@@ -174,7 +171,7 @@ io.on('connection', (socket) => {
 
         const target = room.board[toY][toX];
         if (target) {
-            if (target.owner === role) return;
+            if (target.owner === role || target.type === 'UNCHI') return;
             if (target.type !== 'K') {
                 room.hands[role].push(target.type);
             }
@@ -252,7 +249,7 @@ io.on('connection', (socket) => {
             if (type === 'A') {
                 targets.forEach(t => {
                     const targetPiece = room.board[t.y][t.x];
-                    if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'K') {
+                    if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'K' && targetPiece.type !== 'UNCHI') {
                         room.hands[enemyRole].push(targetPiece.type);
                         room.board[t.y][t.x] = null;
                     }
@@ -269,9 +266,28 @@ io.on('connection', (socket) => {
             } else if (type === 'KE') {
                 if (targets.length === 1) {
                     const targetPiece = room.board[targets[0].y][targets[0].x];
-                    if (targetPiece && targetPiece.owner === enemyRole) {
+                    if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'UNCHI') {
                         targetPiece.isSealed = true;
                     }
+                }
+            } else if (type === 'YOR') {
+                let hasYoshitsune = false;
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        if (room.board[r][c]?.type === 'Y') {
+                            hasYoshitsune = true;
+                            break;
+                        }
+                    }
+                    if (hasYoshitsune) break;
+                }
+                const expectedCount = hasYoshitsune ? 2 : 1;
+                if (targets.length === expectedCount) {
+                    targets.forEach(t => {
+                        if (room.board[t.y][t.x] === null) {
+                            room.board[t.y][t.x] = { type: 'UNCHI', owner: 'neutral', hasUsedSkill: false, isSealed: false };
+                        }
+                    });
                 }
             }
 
