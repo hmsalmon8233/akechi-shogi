@@ -52,12 +52,15 @@
 
             <!-- 初期配置用パレット -->
             <div id="setup-palette" style="display: none;" class="palette">
-                <p style="font-weight: bold; margin-bottom: 6px;">手持ちの駒を選んで自陣・CPU陣に配置してください</p>
-                <div id="palette-pieces"></div>
+                <div id="player-palette-container">
+                    <p style="font-weight: bold; margin-bottom: 6px;">【あなた】自陣（手前）に配置する駒を選んでください</p>
+                    <div id="palette-pieces"></div>
+                </div>
                 
                 <!-- CPU戦用：CPU側配置コントロール -->
                 <div id="cpu-setup-controls" style="display: none; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 10px;">
-                    <p style="font-weight: bold; margin-bottom: 6px;">CPUの駒配置</p>
+                    <p style="font-weight: bold; margin-bottom: 6px;">【CPU】陣地（奥）に配置する駒を選んでください</p>
+                    <div id="cpu-palette-pieces" style="margin-bottom: 8px;"></div>
                     <button onclick="randomizeCpuSetup()" class="cpu-random-btn">CPUの駒をランダム配置</button>
                     <span id="cpu-setup-status" style="display: inline-block; margin-left: 8px; font-size: 13px; color: #666;">（手動配置も可能）</span>
                 </div>

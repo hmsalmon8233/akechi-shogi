@@ -3,10 +3,16 @@ const socket = io();
 let myId = null;
 let currentRoom = null;
 let myRole = null; 
-let selectedHandPiece = null;
 
-let setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+// --- セットアップ用プール（プレイヤーとCPUで完全独立） ---
+let playerSetupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
 let placedSetupPieces = []; 
+
+let cpuSetupPiecesPalette = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+let cpuPlacedSetupPieces = []; 
+
+let selectedPlayerHandIndex = null;
+let selectedCpuHandIndex = null;
 
 let selectedBoardPiece = null; 
 let selectedCapturedIndex = null; 
@@ -15,7 +21,6 @@ let skillTargetPieces = [];
 // --- CPU戦用のローカル状態 ---
 let isCpuMode = false;
 let cpuLocalState = null;
-let cpuPlacedSetupPieces = []; 
 
 const PIECE_DATA = {
     'K': { name: '王', skillName: 'なし', skillDesc: 'スキルを持ちません。', moves: [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -62,9 +67,12 @@ function returnToModeSelect() {
 // --- CPU戦の初期化・セットアップ ---
 function startCpuGameInit() {
     myRole = 'first';
+    playerSetupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
     placedSetupPieces = [];
+    cpuSetupPiecesPalette = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
     cpuPlacedSetupPieces = [];
-    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+    selectedPlayerHandIndex = null;
+    selectedCpuHandIndex = null;
 
     cpuLocalState = {
         phase: 'setup',
@@ -90,15 +98,12 @@ function startCpuGameInit() {
 }
 
 function randomizeCpuSetup() {
-    const allTypes = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
-    
-    // 現在パレットに残っている駒＋既にCPU側に置かれている駒を回収して再シャッフルに含める
-    cpuPlacedSetupPieces.forEach(p => setupPieces.push(p.type));
+    // 既にCPU陣地に置かれているものをパレットに戻す
+    cpuPlacedSetupPieces.forEach(p => cpuSetupPiecesPalette.push(p.type));
     cpuPlacedSetupPieces = [];
 
-    const shuffled = [...setupPieces].sort(() => Math.random() - 0.5);
+    const shuffled = [...cpuSetupPiecesPalette].sort(() => Math.random() - 0.5);
     const chosenTypes = shuffled.slice(0, 4);
-    // 残りをパレットに戻す用に控える
     const remainingTypes = shuffled.slice(4);
 
     const availableX = [0, 1, 3, 4].sort(() => Math.random() - 0.5);
@@ -110,12 +115,13 @@ function randomizeCpuSetup() {
         });
     }
 
-    setupPieces = remainingTypes;
-    selectedHandPiece = null;
+    cpuSetupPiecesPalette = remainingTypes;
+    selectedCpuHandIndex = null;
 
     document.getElementById('cpu-setup-status').innerText = '（ランダム配置完了 ✓）';
     renderPalette();
-    renderSetupBoard();
+    renderCpuPalette();
+    renderSetupBoard(); // 盤面の再描画を追加
     checkCpuReadyStatus();
 }
 
@@ -235,7 +241,8 @@ socket.on('game-started', (state) => {
     else myRole = 'spectator';
 
     placedSetupPieces = [];
-    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+    playerSetupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
+    selectedPlayerHandIndex = null;
 
     startSetupPhase();
 });
@@ -250,14 +257,9 @@ function startSetupPhase() {
         const paletteContainer = document.getElementById('setup-palette');
         if (paletteContainer) {
             paletteContainer.style.display = 'block';
-            const guideElements = Array.from(paletteContainer.querySelectorAll('p, h3, h4, span, div'))
-                .filter(el => el.id !== 'palette-pieces' && el.id !== 'cpu-setup-controls' && !el.id.includes('cpu') && el.innerText.includes('手持ちの駒を選び'));
-
-            guideElements.forEach((el, index) => {
-                el.style.display = (index === 0) ? '' : 'none';
-            });
         }
         renderPalette();
+        if (isCpuMode) renderCpuPalette();
     }
     renderSetupBoard();
 }
@@ -266,13 +268,15 @@ function renderPalette() {
     const paletteEl = document.getElementById('palette-pieces');
     if (!paletteEl) return;
     paletteEl.innerHTML = '';
-    setupPieces.forEach((type, index) => {
+    playerSetupPieces.forEach((type, index) => {
         const btn = document.createElement('button');
         btn.innerText = PIECE_DATA[type].name;
-        btn.className = 'palette-btn' + (selectedHandPiece === index ? ' selected' : '');
+        btn.className = 'palette-btn' + (selectedPlayerHandIndex === index ? ' selected' : '');
         btn.onclick = () => { 
-            selectedHandPiece = index; 
+            selectedPlayerHandIndex = index; 
+            selectedCpuHandIndex = null;
             renderPalette();
+            if (isCpuMode) renderCpuPalette();
             showPieceInfo(type, false, false);
         };
         paletteEl.appendChild(btn);
@@ -286,6 +290,25 @@ function renderPalette() {
             confirmBtn.disabled = (placedSetupPieces.length !== 4);
         }
     }
+}
+
+function renderCpuPalette() {
+    const cpuPaletteEl = document.getElementById('cpu-palette-pieces');
+    if (!cpuPaletteEl) return;
+    cpuPaletteEl.innerHTML = '';
+    cpuSetupPiecesPalette.forEach((type, index) => {
+        const btn = document.createElement('button');
+        btn.innerText = PIECE_DATA[type].name;
+        btn.className = 'palette-btn' + (selectedCpuHandIndex === index ? ' selected' : '');
+        btn.onclick = () => { 
+            selectedCpuHandIndex = index; 
+            selectedPlayerHandIndex = null;
+            renderPalette();
+            renderCpuPalette();
+            showPieceInfo(type, false, false);
+        };
+        cpuPaletteEl.appendChild(btn);
+    });
 }
 
 function isSetupZone(x, y, role) {
@@ -400,18 +423,20 @@ function onSetupTileClick(x, y) {
             const existingIndex = placedSetupPieces.findIndex(p => p.x === x && p.y === y);
             if (existingIndex !== -1) {
                 const removed = placedSetupPieces.splice(existingIndex, 1)[0];
-                setupPieces.push(removed.type);
-                selectedHandPiece = null;
+                playerSetupPieces.push(removed.type);
+                selectedPlayerHandIndex = null;
                 renderPalette(); 
+                if (isCpuMode) renderCpuPalette();
                 renderSetupBoard(); 
                 checkCpuReadyStatus();
                 return;
             }
-            if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
-                const type = setupPieces.splice(selectedHandPiece, 1)[0];
+            if (selectedPlayerHandIndex !== null && playerSetupPieces[selectedPlayerHandIndex]) {
+                const type = playerSetupPieces.splice(selectedPlayerHandIndex, 1)[0];
                 placedSetupPieces.push({ x, y, type });
-                selectedHandPiece = null;
+                selectedPlayerHandIndex = null;
                 renderPalette(); 
+                if (isCpuMode) renderCpuPalette();
                 renderSetupBoard();
                 checkCpuReadyStatus();
             }
@@ -420,18 +445,20 @@ function onSetupTileClick(x, y) {
             const existingIndex = cpuPlacedSetupPieces.findIndex(p => p.x === x && p.y === y);
             if (existingIndex !== -1) {
                 const removed = cpuPlacedSetupPieces.splice(existingIndex, 1)[0];
-                setupPieces.push(removed.type);
-                selectedHandPiece = null;
-                renderPalette(); 
+                cpuSetupPiecesPalette.push(removed.type);
+                selectedCpuHandIndex = null;
+                renderPalette();
+                renderCpuPalette();
                 renderSetupBoard(); 
                 checkCpuReadyStatus();
                 return;
             }
-            if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
-                const type = setupPieces.splice(selectedHandPiece, 1)[0];
+            if (selectedCpuHandIndex !== null && cpuSetupPiecesPalette[selectedCpuHandIndex]) {
+                const type = cpuSetupPiecesPalette.splice(selectedCpuHandIndex, 1)[0];
                 cpuPlacedSetupPieces.push({ x, y, type });
-                selectedHandPiece = null;
-                renderPalette(); 
+                selectedCpuHandIndex = null;
+                renderPalette();
+                renderCpuPalette();
                 renderSetupBoard();
                 checkCpuReadyStatus();
             }
@@ -444,16 +471,16 @@ function onSetupTileClick(x, y) {
     const existingIndex = placedSetupPieces.findIndex(p => p.x === x && p.y === y);
     if (existingIndex !== -1) {
         const removed = placedSetupPieces.splice(existingIndex, 1)[0];
-        setupPieces.push(removed.type);
-        selectedHandPiece = null;
+        playerSetupPieces.push(removed.type);
+        selectedPlayerHandIndex = null;
         renderPalette(); 
         renderSetupBoard(); 
         return;
     }
-    if (selectedHandPiece !== null && setupPieces[selectedHandPiece]) {
-        const type = setupPieces.splice(selectedHandPiece, 1)[0];
+    if (selectedPlayerHandIndex !== null && playerSetupPieces[selectedPlayerHandIndex]) {
+        const type = playerSetupPieces.splice(selectedPlayerHandIndex, 1)[0];
         placedSetupPieces.push({ x, y, type });
-        selectedHandPiece = null;
+        selectedPlayerHandIndex = null;
         renderPalette(); 
         renderSetupBoard();
     }
