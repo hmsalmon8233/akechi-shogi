@@ -78,6 +78,8 @@ io.on('connection', (socket) => {
 
     socket.on('join-player', () => {
         if (room.player1?.id === socket.id || room.player2?.id === socket.id) return;
+        
+        // 観戦者リストから除外
         room.spectators = room.spectators.filter(s => s.id !== socket.id);
 
         if (!room.player1) {
@@ -90,7 +92,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-spectator', () => {
-        if (room.player1?.id === socket.id || room.player2?.id === socket.id) return;
+        // プレイヤー枠から離脱させる
+        if (room.player1?.id === socket.id) room.player1 = null;
+        if (room.player2?.id === socket.id) room.player2 = null;
 
         if (!room.spectators.some(s => s.id === socket.id)) {
             room.spectators.push({ id: socket.id, name: `観戦者 (${socket.id.slice(0, 4)})` });
@@ -288,6 +292,25 @@ io.on('connection', (socket) => {
                             room.board[t.y][t.x] = { type: 'UNCHI', owner: 'neutral', hasUsedSkill: false, isSealed: false };
                         }
                     });
+                }
+            } else if (type === 'SAI') {
+                // サイゴウ：自身を空きマスにワープ
+                if (targets.length === 1) {
+                    const to = targets[0];
+                    if (room.board[to.y][to.x] === null) {
+                        room.board[to.y][to.x] = piece;
+                        room.board[y][x] = null;
+                    }
+                }
+            } else if (type === 'RYO') {
+                // リョウマ：相手1体を指定空きマスにワープ
+                if (targets.length === 2) {
+                    const targetPiece = room.board[targets[0].y][targets[0].x];
+                    const to = targets[1];
+                    if (targetPiece && targetPiece.owner === enemyRole && targetPiece.type !== 'K' && targetPiece.type !== 'UNCHI' && room.board[to.y][to.x] === null) {
+                        room.board[to.y][to.x] = targetPiece;
+                        room.board[targets[0].y][targets[0].x] = null;
+                    }
                 }
             }
 
