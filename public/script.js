@@ -111,8 +111,10 @@ socket.on('game-started', (state) => {
 });
 
 function startSetupPhase() {
-    document.getElementById('game-status').innerText = `【初期配置】手前1段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : myRole === 'second' ? '後攻' : '観戦'})`;
-    if (myRole !== 'spectator') {
+    if (myRole === 'spectator') {
+        document.getElementById('game-status').innerText = '準備中';
+    } else {
+        document.getElementById('game-status').innerText = `【初期配置】手前1段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : '後攻'})`;
         document.getElementById('setup-palette').style.display = 'block';
         renderPalette();
     }
@@ -253,6 +255,7 @@ function confirmSetup() {
 }
 
 function checkWaitStatus() {
+    if (myRole === 'spectator') return;
     const amIP1 = myId === currentRoom.player1?.id;
     const amIP2 = myId === currentRoom.player2?.id;
     if ((amIP1 && currentRoom.p1Ready && !currentRoom.p2Ready) || (amIP2 && currentRoom.p2Ready && !currentRoom.p1Ready)) {
@@ -263,10 +266,8 @@ function checkWaitStatus() {
 socket.on('phase-changed', (state) => {
     currentRoom = state;
     resetSelections();
-    if (myRole !== 'spectator') {
-        document.getElementById('my-hand-container').style.display = 'block';
-        document.getElementById('enemy-hand-container').style.display = 'block';
-    }
+    document.getElementById('my-hand-container').style.display = 'block';
+    document.getElementById('enemy-hand-container').style.display = 'block';
     updateGameStatus();
     renderPlayingBoard();
 });
@@ -327,11 +328,23 @@ function resetSelections() {
 
 function updateGameStatus() {
     if (currentRoom.phase === 'ended') return;
-    const isMyTurn = currentRoom.currentTurnRole === myRole;
-    const turnText = currentRoom.currentTurnRole === 'first' ? '先攻' : '後攻';
-    if (myRole === 'spectator') document.getElementById('game-status').innerText = `【対局中】 ${turnText} のターンです`;
-    else if (isMyTurn) document.getElementById('game-status').innerText = `【あなたのターン】 駒を動かすかスキルを使用してください`;
-    else document.getElementById('game-status').innerText = `【相手のターン】 相手の操作を待っています...`;
+
+    if (myRole === 'spectator') {
+        if (currentRoom.phase === 'setup') {
+            document.getElementById('game-status').innerText = '準備中';
+        } else if (currentRoom.currentTurnRole === 'first') {
+            document.getElementById('game-status').innerText = '先攻のターンです';
+        } else {
+            document.getElementById('game-status').innerText = '後攻のターンです';
+        }
+    } else {
+        const isMyTurn = currentRoom.currentTurnRole === myRole;
+        if (isMyTurn) {
+            document.getElementById('game-status').innerText = `【あなたのターン】 駒を動かすかスキルを使用してください`;
+        } else {
+            document.getElementById('game-status').innerText = `【相手のターン】 相手の操作を待っています...`;
+        }
+    }
 }
 
 function checkPieceOnBoard(pieceType) {
@@ -359,7 +372,6 @@ function getValidMoves(x, y, piece) {
             if (!target) {
                 validMoves.push({ x: nx, y: ny });
             } else if (target.type === 'UNCHI') {
-                // うんち（障害物）がある場合は通過もマス進入も不可
                 break;
             } else {
                 if (target.owner !== piece.owner) validMoves.push({ x: nx, y: ny });
@@ -388,12 +400,12 @@ function getValidMoves(x, y, piece) {
         checkMove(-1, -dir, 2); 
         checkMove(1, -dir, 2);  
     } else if (type === 'YOR') {
-        checkMove(0, dir, 1);    // 前 1
-        checkMove(-1, 0, 1);   // 左 1
-        checkMove(1, 0, 1);    // 右 1
-        checkMove(-1, -dir, 3);// 左後 3
-        checkMove(0, -dir, 3); // 後 3
-        checkMove(1, -dir, 3); // 右後 3
+        checkMove(0, dir, 1);    
+        checkMove(-1, 0, 1);   
+        checkMove(1, 0, 1);    
+        checkMove(-1, -dir, 3);
+        checkMove(0, -dir, 3); 
+        checkMove(1, -dir, 3); 
     }
 
     return validMoves;
@@ -448,10 +460,16 @@ function renderPlayingBoard() {
 }
 
 function renderHands() {
-    if (myRole === 'spectator') return;
-    const enemyRole = (myRole === 'first') ? 'second' : 'first';
-    const myHand = currentRoom.hands[myRole] || [];
-    const enemyHand = currentRoom.hands[enemyRole] || [];
+    let myHandRole = myRole;
+    let enemyHandRole = (myRole === 'first') ? 'second' : 'first';
+
+    if (myRole === 'spectator') {
+        myHandRole = 'first';
+        enemyHandRole = 'second';
+    }
+
+    const myHand = currentRoom.hands[myHandRole] || [];
+    const enemyHand = currentRoom.hands[enemyHandRole] || [];
 
     const myHandEl = document.getElementById('my-hand-pieces');
     myHandEl.innerHTML = '';
@@ -459,11 +477,11 @@ function renderHands() {
     else {
         myHand.forEach((type, idx) => {
             const btn = document.createElement('button');
-            btn.className = 'hand-piece-btn' + (selectedCapturedIndex === idx ? ' selected' : '');
+            btn.className = 'hand-piece-btn' + (selectedCapturedIndex === idx && myRole !== 'spectator' ? ' selected' : '');
             btn.innerText = PIECE_DATA[type].name;
             btn.onclick = () => {
                 showPieceInfo(type, false, false);
-                if (currentRoom.currentTurnRole !== myRole) return;
+                if (myRole === 'spectator' || currentRoom.currentTurnRole !== myRole) return;
                 selectedBoardPiece = null;
                 skillTargetPieces = [];
                 document.getElementById('skill-control').style.display = 'none';
