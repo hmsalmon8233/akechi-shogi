@@ -111,7 +111,7 @@ socket.on('game-started', (state) => {
     else myRole = 'spectator';
 
     placedSetupPieces = [];
-    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR']; 
+    setupPieces = ['A', 'N', 'S', 'Y', 'KE', 'YOR', 'SAI', 'RYO'];
 
     startSetupPhase();
 });
