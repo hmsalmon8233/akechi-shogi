@@ -38,7 +38,6 @@ function leaveRoom() {
     myRole = null;
     resetSelections();
 
-    // 画面切り替え：ロビー・ゲーム画面を閉じて部屋選択画面を表示
     document.getElementById('game-screen').style.display = 'none';
     document.getElementById('lobby-screen').style.display = 'none';
     const roomSelectEl = document.getElementById('room-select-screen');
@@ -51,7 +50,6 @@ function returnToLobby() { socket.emit('return-to-lobby'); }
 socket.on('room-update', (state) => {
     currentRoom = state;
 
-    // 自身の役割を判定
     if (state.player1?.id === myId) myRole = state.player1.role;
     else if (state.player2?.id === myId) myRole = state.player2.role;
     else if (state.spectators?.some(s => s.id === myId)) myRole = 'spectator';
@@ -59,7 +57,6 @@ socket.on('room-update', (state) => {
 
     if (!myRole) return;
 
-    // ロビー画面表示の更新
     document.getElementById('p1-name').innerText = state.player1 ? state.player1.name : '（空き）';
     document.getElementById('p2-name').innerText = state.player2 ? state.player2.name : '（空き）';
 
@@ -79,8 +76,11 @@ socket.on('room-update', (state) => {
         btnStart.style.display = (isPlayer && state.player1 && state.player2 && state.phase === 'lobby') ? 'inline-block' : 'none';
     }
 
-    // 途中観戦の対応：観戦者が進行中の部屋に入った場合
-    if (myRole === 'spectator' && state.phase !== 'lobby') {
+    // 画面切り替えおよび途中観戦の制御
+    if (state.phase === 'lobby') {
+        document.getElementById('lobby-screen').style.display = 'block';
+        document.getElementById('game-screen').style.display = 'none';
+    } else if (myRole === 'spectator' && state.phase !== 'lobby') {
         document.getElementById('lobby-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
 
@@ -125,15 +125,14 @@ function startSetupPhase() {
         const paletteContainer = document.getElementById('setup-palette');
         paletteContainer.style.display = 'block';
 
-        // 対象の案内文を取得し、1つ目だけ表示を残して2つ目以降を非表示にする
         const guideElements = Array.from(paletteContainer.querySelectorAll('p, h3, h4, span, div'))
             .filter(el => el.id !== 'palette-pieces' && el.innerText.includes('手持ちの駒を選び'));
 
         guideElements.forEach((el, index) => {
             if (index === 0) {
-                el.style.display = ''; // 1つ目は表示を維持
+                el.style.display = '';
             } else {
-                el.style.display = 'none'; // 2つ目以降の重複文のみ削除
+                el.style.display = 'none';
             }
         });
 
@@ -428,20 +427,20 @@ function getValidMoves(x, y, piece) {
         checkMove(0, -dir, 3); 
         checkMove(1, -dir, 3); 
     } else if (type === 'SAI') {
-        checkMove(0, dir, 2);   // 前 2
-        checkMove(1, dir, 1);   // 右前 1
-        checkMove(-1, 0, 1);    // 左 1
-        checkMove(1, 0, 3);     // 右 3
-        checkMove(-1, -dir, 2); // 左下 2
-        checkMove(0, -dir, 1);  // 下 1
+        checkMove(0, dir, 2);   
+        checkMove(1, dir, 1);   
+        checkMove(-1, 0, 1);    
+        checkMove(1, 0, 3);     
+        checkMove(-1, -dir, 2); 
+        checkMove(0, -dir, 1);  
     } else if (type === 'RYO') {
-        checkMove(-1, dir, 3);  // 左前 3
-        checkMove(1, dir, 3);   // 右前 3
-        checkMove(-1, 0, 1);    // 左 1
-        checkMove(1, 0, 1);     // 右 1
-        checkMove(-1, -dir, 1); // 左下 1
-        checkMove(0, -dir, 3);  // 下 3
-        checkMove(1, -dir, 1);  // 右下 1
+        checkMove(-1, dir, 3);  
+        checkMove(1, dir, 3);   
+        checkMove(-1, 0, 1);    
+        checkMove(1, 0, 1);     
+        checkMove(-1, -dir, 1); 
+        checkMove(0, -dir, 3);  
+        checkMove(1, -dir, 1);  
     }
 
     return validMoves;
@@ -719,12 +718,10 @@ function handleSkillTargetClick(x, y) {
             }
         }
     } else if (piece.type === 'SAI') {
-        // サイゴウ：移動先（空きマス）を1つ選択
         if (target === null) {
             socket.emit('use-skill', { type: 'SAI', x: selectedBoardPiece.x, y: selectedBoardPiece.y, targets: [{ x, y }] });
         }
     } else if (piece.type === 'RYO') {
-        // リョウマ：1人目＝相手の駒、2人目＝移動先の空きマス
         if (skillTargetPieces.length === 0) {
             if (target && target.owner !== myRole && target.type !== 'K' && target.type !== 'UNCHI') {
                 skillTargetPieces.push({ x, y });
