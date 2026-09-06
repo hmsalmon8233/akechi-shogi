@@ -13,54 +13,14 @@ let selectedCapturedIndex = null;
 let skillTargetPieces = [];
 
 const PIECE_DATA = {
-    'K': {
-        name: '王',
-        skillName: 'なし',
-        skillDesc: 'スキルを持ちません。',
-        moves: [1, 1, 1, 1, 1, 1, 1, 1]
-    },
-    'A': {
-        name: 'アケチ',
-        skillName: '本能寺の変',
-        skillDesc: '盤面の相手の駒2体を相手の持ち駒に戻す。',
-        moves: [0, 1, 0, 2, 2, 2, 2, 2]
-    },
-    'N': {
-        name: 'ノブナガ',
-        skillName: '第六天魔王',
-        skillDesc: '相手のスキル発動時、相手のスキルの効果を無効にする。（相手発動時に選択肢が出現）',
-        moves: [1, 3, 1, 2, 2, 0, 2, 0]
-    },
-    'S': {
-        name: 'シンゲン',
-        skillName: '風林火山',
-        skillDesc: '場の相手のキャラ数が自分より多いときにスキル発動可能。移動範囲増加（←↑→+1）。',
-        moves: [3, 2, 3, 0, 0, 1, 1, 1]
-    },
-    'Y': {
-        name: 'ヨシツネ',
-        skillName: '牛若丸',
-        skillDesc: '味方二体の場所を交換する。',
-        moves: [2, 2, 2, 2, 2, 0, 2, 0]
-    },
-    'KE': {
-        name: 'ケンシン',
-        skillName: '毘沙門天',
-        skillDesc: '相手一体をスキル封印状態にする。（スキル使用不可・移動は可能）',
-        moves: [2, 1, 3, 3, 0, 2, 0, 2]
-    },
-    'YOR': {
-        name: 'ヨリトモ',
-        skillName: '1192つくろう',
-        skillDesc: '盤面の空きマスに「うんち（障害物）」を1つ置く。場にヨシツネがいれば2つ置く。',
-        moves: [0, 1, 0, 1, 1, 3, 3, 3]
-    },
-    'UNCHI': {
-        name: 'うんち',
-        skillName: 'なし',
-        skillDesc: '障害物。キャラクターはここを通ることができず、入ることもできません。',
-        moves: [0, 0, 0, 0, 0, 0, 0, 0]
-    }
+    'K': { name: '王', skillName: 'なし', skillDesc: 'スキルを持ちません。', moves: [1, 1, 1, 1, 1, 1, 1, 1] },
+    'A': { name: 'アケチ', skillName: '本能寺の変', skillDesc: '盤面の相手の駒2体を相手の持ち駒に戻す。', moves: [0, 1, 0, 2, 2, 2, 2, 2] },
+    'N': { name: 'ノブナガ', skillName: '第六天魔王', skillDesc: '相手のスキル発動時、相手のスキルの効果を無効にする。（相手発動時に選択肢が出現）', moves: [1, 3, 1, 2, 2, 0, 2, 0] },
+    'S': { name: 'シンゲン', skillName: '風林火山', skillDesc: '場の相手のキャラ数が自分より多いときにスキル発動可能。移動範囲増加（←↑→+1）。', moves: [3, 2, 3, 0, 0, 1, 1, 1] },
+    'Y': { name: 'ヨシツネ', skillName: '牛若丸', skillDesc: '味方二体の場所を交換する。', moves: [2, 2, 2, 2, 2, 0, 2, 0] },
+    'KE': { name: 'ケンシン', skillName: '毘沙門天', skillDesc: '相手一体をスキル封印状態にする。（スキル使用不可・移動は可能）', moves: [2, 1, 3, 3, 0, 2, 0, 2] },
+    'YOR': { name: 'ヨリトモ', skillName: '1192つくろう', skillDesc: '盤面の空きマスに「うんち（障害物）」を1つ置く。場にヨシツネがいれば2つ置く。', moves: [0, 1, 0, 1, 1, 3, 3, 3] },
+    'UNCHI': { name: 'うんち', skillName: 'なし', skillDesc: '障害物。キャラクターはここを通ることができず、入ることもできません。', moves: [0, 0, 0, 0, 0, 0, 0, 0] }
 };
 
 socket.on('connect', () => { 
@@ -69,27 +29,71 @@ socket.on('connect', () => {
 
 function joinPlayer() { socket.emit('join-player'); }
 function joinSpectator() { socket.emit('join-spectator'); }
-function leaveRoom() { socket.emit('leave-room'); }
+
+function leaveRoom() { 
+    socket.emit('leave-room'); 
+    currentRoom = null;
+    myRole = null;
+    resetSelections();
+
+    // 画面切り替え：ロビー・ゲーム画面を閉じて部屋選択画面を表示
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'none';
+    const roomSelectEl = document.getElementById('room-select-screen');
+    if (roomSelectEl) roomSelectEl.style.display = 'block';
+}
+
 function startGame() { socket.emit('start-game'); }
 function returnToLobby() { socket.emit('return-to-lobby'); }
 
 socket.on('room-update', (state) => {
     currentRoom = state;
+
+    // 自身の役割を判定
+    if (state.player1?.id === myId) myRole = state.player1.role;
+    else if (state.player2?.id === myId) myRole = state.player2.role;
+    else if (state.spectators?.some(s => s.id === myId)) myRole = 'spectator';
+    else myRole = null;
+
+    if (!myRole) return;
+
+    // ロビー画面表示の更新
     document.getElementById('p1-name').innerText = state.player1 ? state.player1.name : '（空き）';
     document.getElementById('p2-name').innerText = state.player2 ? state.player2.name : '（空き）';
 
     const specList = document.getElementById('spectator-list');
-    specList.innerHTML = '';
-    state.spectators.forEach(s => {
-        const li = document.createElement('li');
-        li.innerText = s.name;
-        specList.appendChild(li);
-    });
+    if (specList) {
+        specList.innerHTML = '';
+        state.spectators.forEach(s => {
+            const li = document.createElement('li');
+            li.innerText = s.name;
+            specList.appendChild(li);
+        });
+    }
 
     const isPlayer = (state.player1?.id === myId || state.player2?.id === myId);
-    document.getElementById('btn-start').style.display = (isPlayer && state.player1 && state.player2 && state.phase === 'lobby') ? 'inline-block' : 'none';
+    const btnStart = document.getElementById('btn-start');
+    if (btnStart) {
+        btnStart.style.display = (isPlayer && state.player1 && state.player2 && state.phase === 'lobby') ? 'inline-block' : 'none';
+    }
 
-    if (currentRoom.phase === 'setup' && currentRoom.gameStarted) checkWaitStatus();
+    // 途中観戦の対応：観戦者が進行中の部屋に入った場合
+    if (myRole === 'spectator' && state.phase !== 'lobby') {
+        document.getElementById('lobby-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+
+        if (state.phase === 'setup') {
+            startSetupPhase();
+        } else if (state.phase === 'playing' || state.phase === 'ended') {
+            document.getElementById('setup-palette').style.display = 'none';
+            document.getElementById('my-hand-container').style.display = 'block';
+            document.getElementById('enemy-hand-container').style.display = 'block';
+            updateGameStatus();
+            renderPlayingBoard();
+        }
+    } else if (currentRoom.phase === 'setup' && currentRoom.gameStarted) {
+        checkWaitStatus();
+    }
 });
 
 socket.on('game-started', (state) => {
@@ -113,9 +117,19 @@ socket.on('game-started', (state) => {
 function startSetupPhase() {
     if (myRole === 'spectator') {
         document.getElementById('game-status').innerText = '準備中';
+        document.getElementById('setup-palette').style.display = 'none';
     } else {
-        document.getElementById('game-status').innerText = `【初期配置】手前1段のマスに駒を配置してください (${myRole === 'first' ? '先攻' : '後攻'})`;
-        document.getElementById('setup-palette').style.display = 'block';
+        document.getElementById('game-status').innerText = `【初期配置】 (${myRole === 'first' ? '先攻' : '後攻'})`;
+        const paletteContainer = document.getElementById('setup-palette');
+        paletteContainer.style.display = 'block';
+        
+        const redundantText = paletteContainer.querySelectorAll('p, h3, h4, span, div');
+        redundantText.forEach(el => {
+            if (el.id !== 'palette-pieces' && el.innerText.includes('手持ちの駒を選び')) {
+                el.style.display = 'none';
+            }
+        });
+
         renderPalette();
     }
     renderSetupBoard();
